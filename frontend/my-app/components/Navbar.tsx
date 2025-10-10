@@ -4,15 +4,15 @@ import { UserCircle } from 'lucide-react';
 
 export default function Navbar() {
   return (
-    <nav className="bg-gray-400 text-white shadow-lg">
+    <nav className="bg-gray-300 text-white shadow-lg">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-24">
+        <div className="flex justify-between items-center h-20">
           <div className="flex items-center">
             <Link href="/" className="hover:opacity-50">
               <Image
                 src="/ASI-Website-Logo_Brand-web.webp"
                 alt="ASICPP Logo"
-                width={100}
+                width={80}
                 height={20}
                 priority
               />
@@ -24,7 +24,7 @@ export default function Navbar() {
               Programs
             </Link>
             <Link href="/profile" className="hover:bg-gray-500 px-3 py-2 rounded-full flex items-center gap-2">
-              <UserCircle size={30} />
+              <UserCircle size={40} />
             </Link>
           </div>
         </div>
