@@ -4,7 +4,7 @@ export default function Programs() {
       <h1 className="text-4xl font-bold mb-6">Programs</h1>
       <div className="space-y-6">
         <p className="text-lg">
-          Explore our programs and opportunities.
+          Explore our programs and opportunities. 
         </p>
         {/* Add your programs content here */}
       </div>
