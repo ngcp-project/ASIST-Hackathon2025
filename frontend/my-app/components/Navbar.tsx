@@ -20,11 +20,11 @@ export default function Navbar() {
           </div>
 
           <div className="flex space-x-4">
-            <Link href="/programs" className="text-sky-900 font-semibold hover:bg-gray-500 hover:text-sky-200 px-3 py-2 rounded-full flex items-center">
+            <Link href="/programs" className="text-sky-900 font-semibold hover:bg-gray-200 hover:opacity-50 px-3 py-2 rounded-full flex items-center text-lg">
               Programs
             </Link>
-            <Link href="/profile" className="hover:bg-gray-500 px-3 py-2 rounded-full flex items-center gap-2">
-              <UserCircle size={40} />
+            <Link href="/profile" className="hover:bg-gray-200 hover:opacity-50 px-3 py-2 rounded-full flex items-center gap-2">
+              <UserCircle size={40} className="text-sky-900" />
             </Link>
           </div>
         </div>
