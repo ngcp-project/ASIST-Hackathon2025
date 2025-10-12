@@ -1,9 +1,7 @@
 export default function Profile() {
   return (
-    <div className="container mx-auto px-4 py-8">
-      <h1 className="text-4xl font-bold mb-6">Profile</h1>
-      <div className="space-y-6">
-        <div className="max-w-md">
+    <div className="container mx-auto px-4 py-8 flex justify-center min-h-screen">
+      <div className="w-full max-w-md">
           {/* Email Field */}
           <div className="mb-4">
             <label htmlFor="email" className="block text-sm font-medium mb-2">
@@ -38,15 +36,14 @@ export default function Profile() {
           </div>
 
           {/* Buttons */}
-          <div className="flex gap-4">
-            <button className="flex-1 bg-green-500 text-white px-6 py-2 rounded-md hover:bg-green-600 transition-colors">
+          <div className="w-full max-w-md space-y-4">
+            <button className="w-full bg-green-500 text-white px-6 py-2 rounded-md hover:bg-green-600 transition-colors">
               Sign In
             </button>
-            <button className="flex-1 bg-gray-200 text-gray-800 px-6 py-2 rounded-md hover:bg-gray-300 transition-colors">
+            <button className="w-full bg-gray-200 text-gray-800 px-6 py-2 rounded-md hover:bg-gray-300 transition-colors">
               Create Account
             </button>
           </div>
-        </div>
       </div>
     </div>
   );
