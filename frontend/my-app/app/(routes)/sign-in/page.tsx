@@ -1,4 +1,6 @@
-export default function Profile() {
+import Link from 'next/link';
+
+export default function SignIn() {
   return (
     <div className="container mx-auto px-4 py-8 flex justify-center min-h-screen">
       <div className="w-full max-w-md">
@@ -40,9 +42,11 @@ export default function Profile() {
             <button className="w-full bg-green-500 text-white px-6 py-2 rounded-md hover:bg-green-600 transition-colors">
               Sign In
             </button>
-            <button className="w-full bg-gray-200 text-gray-800 px-6 py-2 rounded-md hover:bg-gray-300 transition-colors">
-              Create Account
-            </button>
+            <Link href="/create-account" className="block">
+              <button className="w-full bg-gray-200 text-gray-800 px-6 py-2 rounded-md hover:bg-gray-300 transition-colors">
+                Create Account
+              </button>
+            </Link>
           </div>
       </div>
     </div>
