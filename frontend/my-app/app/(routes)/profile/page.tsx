@@ -4,7 +4,7 @@ export default function Profile() {
       <h1 className="text-4xl font-bold mb-6">Profile</h1>
       <div className="space-y-6">
         <p className="text-lg">
-          Manage your profile and settings.
+          Welcome to your profile page!
         </p>
         {/* Add your profile content here */}
       </div>
