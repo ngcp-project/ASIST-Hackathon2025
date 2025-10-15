@@ -35,9 +35,32 @@ export default function SignIn() {
 
     setErrors(newErrors);
 
-    // If no errors, proceed to profile
+    // If no errors, verify credentials
     if (!newErrors.email && !newErrors.password) {
-      router.push('/profile');
+      // Check if user exists in localStorage
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const userData = JSON.parse(storedUser);
+
+        // Verify email and password match
+        if (userData.email === email && userData.password === password) {
+          // Credentials match, proceed to profile
+          router.push('/profile');
+        } else {
+          // Credentials don't match
+          if (userData.email !== email) {
+            newErrors.email = 'Email not found';
+          }
+          if (userData.password !== password) {
+            newErrors.password = 'Incorrect password';
+          }
+          setErrors(newErrors);
+        }
+      } else {
+        // No account found
+        newErrors.email = 'No account found. Please create an account first.';
+        setErrors(newErrors);
+      }
     }
   };
 
