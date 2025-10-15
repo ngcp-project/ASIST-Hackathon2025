@@ -19,15 +19,23 @@ export default function Membership() {
       const userData = JSON.parse(storedUser);
       const userAffiliation = userData.affiliation || '';
       setAffiliation(userAffiliation);
-
-      // Set price based on affiliation
-      if (userAffiliation === 'Student') {
-        setPrice(0);
-      } else if (userAffiliation === 'Alumni' || userAffiliation === 'Faculty and Staff') {
-        setPrice(200);
-      }
     }
   }, []);
+
+  // Update price when duration or affiliation changes
+  useEffect(() => {
+    if (affiliation === 'Student') {
+      setPrice(0);
+    } else if (affiliation === 'Alumni' || affiliation === 'Faculty and Staff') {
+      if (duration === 'Semester') {
+        setPrice(241);
+      } else if (duration === 'Full Year') {
+        setPrice(482);
+      } else {
+        setPrice(0); // No duration selected yet
+      }
+    }
+  }, [affiliation, duration]);
 
   const handleRegister = () => {
     // Calculate start and expiration dates
