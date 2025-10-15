@@ -69,8 +69,18 @@ export default function CreateAccount() {
 
     setErrors(newErrors);
 
-    // If no errors, proceed to profile
+    // If no errors, save user data and proceed to profile
     if (!newErrors.firstName && !newErrors.lastName && !newErrors.email && !newErrors.password && !newErrors.confirmPassword) {
+      // Save user data to localStorage (including password for validation)
+      const userData = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        password: formData.password, // In production, NEVER store plain passwords! Use proper authentication
+        fullName: `${formData.firstName} ${formData.lastName}`
+      };
+      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('isLoggedIn', 'true');
       router.push('/profile');
     }
   };
