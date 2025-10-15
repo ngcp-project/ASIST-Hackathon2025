@@ -1,22 +1,24 @@
-'use client';
-
+'use client'
+// component to represent the navigation bar of the application.
 import Link from 'next/link';
 import Image from 'next/image';
 import { UserCircle } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
 
 export default function Navbar() {
-  const router = useRouter();
-
-  const handleProfileClick = () => {
-    // Check if user is logged in
-    const isLoggedIn = localStorage.getItem('isLoggedIn');
-    if (isLoggedIn === 'true') {
-      router.push('/profile');
-    } else {
-      router.push('/sign-in');
-    }
-  };
+  const [isSignedIn, setIsSignedIn] = useState<boolean | null>(null);
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      setIsSignedIn(!!data.user);
+    });
+    // Listen for sign-in/sign-out events
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsSignedIn(!!session?.user);
+    });
+    return () => { listener?.subscription.unsubscribe(); };
+  }, []);
 
   return (
     <nav className="bg-gray-300 text-white shadow-lg">
@@ -38,9 +40,9 @@ export default function Navbar() {
             <Link href="/programs" className="text-sky-900 font-semibold hover:bg-gray-200 hover:opacity-50 px-3 py-2 rounded-full flex items-center text-lg">
               Programs
             </Link>
-            <button onClick={handleProfileClick} className="hover:bg-gray-200 hover:opacity-50 px-3 py-2 rounded-full flex items-center gap-2">
+            <Link href={isSignedIn ? "/profile" : "/sign-in"} className="hover:bg-gray-200 hover:opacity-50 px-3 py-2 rounded-full flex items-center gap-2">
               <UserCircle size={40} className="text-sky-900" />
-            </button>
+            </Link>
           </div>
         </div>
       </div>
