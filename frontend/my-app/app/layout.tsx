@@ -1,3 +1,4 @@
+// This is the root layout component for the app.
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";

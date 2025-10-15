@@ -46,5 +46,5 @@ export default function Programs() {
         </div>
       </main>
     </div>
-  );
+  )
 }
