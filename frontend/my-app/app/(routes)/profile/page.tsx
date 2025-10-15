@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 export default function Profile() {
   const [userName, setUserName] = useState("Guest");
   const [userEmail, setUserEmail] = useState("");
+  const [userId, setUserId] = useState("");
 
   useEffect(() => {
     // Retrieve user data from localStorage
@@ -14,31 +15,63 @@ export default function Profile() {
       const userData = JSON.parse(storedUser);
       setUserName(userData.fullName);
       setUserEmail(userData.email);
+      // Generate a placeholder ID (you can replace this with actual ID from database later)
+      setUserId(`ID-${Math.random().toString(36).substr(2, 9).toUpperCase()}`);
     }
   }, []);
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex gap-8">
-        {/* Left Side - Profile Avatar and Name */}
-        <div className="w-64 flex flex-col items-center">
-          <div className="mb-4">
-            <UserCircle size={150} className="text-gray-400" />
+    <div className="container mx-auto px-4 py-8 flex justify-center">
+      <div className="max-w-5xl w-full">
+        <div className="flex gap-8">
+          {/* Left Side - Profile Avatar and Name */}
+          <div className="w-64 flex flex-col items-center">
+            <div className="mb-4">
+              <UserCircle size={150} className="text-gray-400" />
+            </div>
+            <h2 className="text-2xl font-bold text-center">{userName}</h2>
+            {userId && (
+              <p className="text-sm text-gray-600 mt-2">{userId}</p>
+            )}
           </div>
-          <h2 className="text-2xl font-bold text-center">{userName}</h2>
-          {userEmail && (
-            <p className="text-sm text-gray-600 mt-2">{userEmail}</p>
-          )}
-        </div>
 
-        {/* Right Side - Profile Content */}
-        <div className="flex-1">
-          <h1 className="text-4xl font-bold mb-6">Profile</h1>
-          <div className="space-y-6">
-            <p className="text-lg">
-              Welcome to your profile page!
-            </p>
-            {/* Add your profile content here */}
+          {/* Right Side - Profile Content */}
+          <div className="flex-1">
+            {/* Membership Information */}
+            <div className="mb-8">
+              <div className="space-y-3 mb-6">
+                <div className="flex items-center">
+                  <span className="font-semibold w-40">Membership Type:</span>
+                  <span className="text-gray-600">None</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="font-semibold w-40">Start Date:</span>
+                  <span className="text-gray-600">-</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="font-semibold w-40">Expire Date:</span>
+                  <span className="text-gray-600">-</span>
+                </div>
+              </div>
+              <button className="bg-green-500 text-white px-6 py-2 rounded-md hover:bg-green-600 transition-colors">
+                Add Membership
+              </button>
+            </div>
+
+            {/* Personal Info Section */}
+            <div>
+              <h2 className="text-2xl font-bold mb-4">Personal Info</h2>
+              <div className="space-y-3">
+                <div className="flex items-center">
+                  <span className="font-semibold w-32">Name:</span>
+                  <span className="text-gray-600">{userName}</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="font-semibold w-32">Email:</span>
+                  <span className="text-gray-600">{userEmail}</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
