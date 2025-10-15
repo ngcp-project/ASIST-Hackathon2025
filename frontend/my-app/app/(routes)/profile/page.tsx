@@ -8,6 +8,7 @@ export default function Profile() {
   const router = useRouter();
   const [userName, setUserName] = useState("Guest");
   const [userEmail, setUserEmail] = useState("");
+  const [userAffiliation, setUserAffiliation] = useState("");
   const [userId, setUserId] = useState("");
 
   useEffect(() => {
@@ -17,6 +18,7 @@ export default function Profile() {
       const userData = JSON.parse(storedUser);
       setUserName(userData.fullName);
       setUserEmail(userData.email);
+      setUserAffiliation(userData.affiliation || "Not specified");
       // Generate a placeholder ID (you can replace this with actual ID from database later)
       setUserId(`ID-${Math.random().toString(36).substr(2, 9).toUpperCase()}`);
     }
@@ -84,6 +86,10 @@ export default function Profile() {
                 <div className="flex items-center">
                   <span className="font-semibold w-32">Email:</span>
                   <span className="text-gray-600">{userEmail}</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="font-semibold w-32">Affiliation:</span>
+                  <span className="text-gray-600">{userAffiliation}</span>
                 </div>
               </div>
             </div>

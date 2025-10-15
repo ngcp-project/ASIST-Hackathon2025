@@ -9,6 +9,7 @@ export default function CreateAccount() {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
+    affiliation: '',
     email: '',
     password: '',
     confirmPassword: ''
@@ -16,6 +17,7 @@ export default function CreateAccount() {
   const [errors, setErrors] = useState({
     firstName: '',
     lastName: '',
+    affiliation: '',
     email: '',
     password: '',
     confirmPassword: ''
@@ -31,6 +33,7 @@ export default function CreateAccount() {
     const newErrors = {
       firstName: '',
       lastName: '',
+      affiliation: '',
       email: '',
       password: '',
       confirmPassword: ''
@@ -44,6 +47,11 @@ export default function CreateAccount() {
     // Validate last name
     if (!formData.lastName.trim()) {
       newErrors.lastName = 'Last name is required';
+    }
+
+    // Validate affiliation
+    if (!formData.affiliation) {
+      newErrors.affiliation = 'Please select an affiliation';
     }
 
     // Validate email
@@ -70,11 +78,12 @@ export default function CreateAccount() {
     setErrors(newErrors);
 
     // If no errors, save user data and proceed to profile
-    if (!newErrors.firstName && !newErrors.lastName && !newErrors.email && !newErrors.password && !newErrors.confirmPassword) {
+    if (!newErrors.firstName && !newErrors.lastName && !newErrors.affiliation && !newErrors.email && !newErrors.password && !newErrors.confirmPassword) {
       // Save user data to localStorage (including password for validation)
       const userData = {
         firstName: formData.firstName,
         lastName: formData.lastName,
+        affiliation: formData.affiliation,
         email: formData.email,
         password: formData.password, // In production, NEVER store plain passwords! Use proper authentication
         fullName: `${formData.firstName} ${formData.lastName}`
@@ -85,7 +94,7 @@ export default function CreateAccount() {
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
@@ -136,6 +145,30 @@ export default function CreateAccount() {
                 <p className="text-red-500 text-sm mt-1">{errors.lastName}</p>
               )}
             </div>
+          </div>
+
+          {/* Affiliation Dropdown */}
+          <div className="mb-4">
+            <label htmlFor="affiliation" className="block text-sm font-medium mb-2">
+              Affiliation
+            </label>
+            <select
+              id="affiliation"
+              name="affiliation"
+              value={formData.affiliation}
+              onChange={handleChange}
+              className={`w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                errors.affiliation ? 'border-red-500' : 'border-gray-300'
+              } ${!formData.affiliation ? 'text-gray-400' : ''}`}
+            >
+              <option value="" className="text-gray-400">Select your affiliation</option>
+              <option value="Student" className="text-black">Student</option>
+              <option value="Alumni" className="text-black">Alumni</option>
+              <option value="Faculty and Staff" className="text-black">Faculty and Staff</option>
+            </select>
+            {errors.affiliation && (
+              <p className="text-red-500 text-sm mt-1">{errors.affiliation}</p>
+            )}
           </div>
 
           {/* Email and Password Row */}
