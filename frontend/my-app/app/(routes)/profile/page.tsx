@@ -11,6 +11,10 @@ export default function Profile() {
   const [userEmail, setUserEmail] = useState("");
   const [userAffiliation, setUserAffiliation] = useState("");
   const [userId, setUserId] = useState("");
+  const [membershipType, setMembershipType] = useState("None");
+  const [startDate, setStartDate] = useState("-");
+  const [expireDate, setExpireDate] = useState("-");
+  const [hasMembership, setHasMembership] = useState(false);
 
   useEffect(() => {
     // Retrieve user data from localStorage
@@ -22,6 +26,14 @@ export default function Profile() {
       setUserAffiliation(userData.affiliation || "Not specified");
       // Generate a placeholder ID (you can replace this with actual ID from database later)
       setUserId(`ID-${Math.random().toString(36).substr(2, 9).toUpperCase()}`);
+
+      // Check if user has membership data
+      if (userData.membership) {
+        setMembershipType(userData.membership.type);
+        setStartDate(userData.membership.startDate);
+        setExpireDate(userData.membership.expireDate);
+        setHasMembership(true);
+      }
     }
   }, []);
 
@@ -60,22 +72,24 @@ export default function Profile() {
               <div className="space-y-3 mb-6">
                 <div className="flex items-center">
                   <span className="font-semibold w-40">Membership Type:</span>
-                  <span className="text-gray-600">None</span>
+                  <span className="text-gray-600">{membershipType}</span>
                 </div>
                 <div className="flex items-center">
                   <span className="font-semibold w-40">Start Date:</span>
-                  <span className="text-gray-600">-</span>
+                  <span className="text-gray-600">{startDate}</span>
                 </div>
                 <div className="flex items-center">
                   <span className="font-semibold w-40">Expire Date:</span>
-                  <span className="text-gray-600">-</span>
+                  <span className="text-gray-600">{expireDate}</span>
                 </div>
               </div>
-              <Link href="/profile/membership">
-                <button className="bg-green-500 text-white px-6 py-2 rounded-md hover:bg-green-600 transition-colors">
-                  Add Membership
-                </button>
-              </Link>
+              {!hasMembership && (
+                <Link href="/profile/membership">
+                  <button className="bg-green-500 text-white px-6 py-2 rounded-md hover:bg-green-600 transition-colors">
+                    Add Membership
+                  </button>
+                </Link>
+              )}
             </div>
 
             {/* Personal Info Section */}

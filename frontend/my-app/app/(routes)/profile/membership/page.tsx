@@ -10,6 +10,7 @@ export default function Membership() {
   const [duration, setDuration] = useState('');
   const [waiver, setWaiver] = useState(false);
   const [showWaiverModal, setShowWaiverModal] = useState(false);
+  const [hasViewedWaiver, setHasViewedWaiver] = useState(false);
 
   useEffect(() => {
     // Get user affiliation from localStorage
@@ -29,9 +30,44 @@ export default function Membership() {
   }, []);
 
   const handleRegister = () => {
-    // Handle membership registration
-    console.log('Registering membership with:', { affiliation, price, duration, waiver });
-    // You can add your registration logic here
+    // Calculate start and expiration dates
+    const startDate = new Date();
+    const expireDate = new Date();
+
+    if (duration === 'Semester') {
+      // Add 4 months for a semester
+      expireDate.setMonth(expireDate.getMonth() + 4);
+    } else if (duration === 'Full Year') {
+      // Add 1 year
+      expireDate.setFullYear(expireDate.getFullYear() + 1);
+    }
+
+    // Format dates as MM/DD/YYYY
+    const formatDate = (date: Date) => {
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${month}/${day}/${year}`;
+    };
+
+    // Get existing user data and add membership to it
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      const userData = JSON.parse(storedUser);
+
+      // Add membership data to user object
+      userData.membership = {
+        type: duration,
+        startDate: formatDate(startDate),
+        expireDate: formatDate(expireDate),
+        price: price
+      };
+
+      // Save updated user data back to localStorage
+      localStorage.setItem('user', JSON.stringify(userData));
+    }
+
+    // Redirect back to profile
     router.push('/profile');
   };
 
@@ -99,13 +135,19 @@ export default function Membership() {
               id="waiver"
               checked={waiver}
               onChange={(e) => setWaiver(e.target.checked)}
-              className="mt-1 mr-3 h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              disabled={!hasViewedWaiver}
+              className={`mt-1 mr-3 h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded ${
+                !hasViewedWaiver ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+              }`}
             />
             <label htmlFor="waiver" className="text-sm text-gray-700">
               I have read and agree to the{' '}
               <button
                 type="button"
-                onClick={() => setShowWaiverModal(true)}
+                onClick={() => {
+                  setShowWaiverModal(true);
+                  setHasViewedWaiver(true);
+                }}
                 className="text-blue-600 hover:underline"
               >
                 Waiver
