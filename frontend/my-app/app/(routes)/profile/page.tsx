@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { UserCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -70,9 +71,11 @@ export default function Profile() {
                   <span className="text-gray-600">-</span>
                 </div>
               </div>
-              <button className="bg-green-500 text-white px-6 py-2 rounded-md hover:bg-green-600 transition-colors">
-                Add Membership
-              </button>
+              <Link href="/profile/membership">
+                <button className="bg-green-500 text-white px-6 py-2 rounded-md hover:bg-green-600 transition-colors">
+                  Add Membership
+                </button>
+              </Link>
             </div>
 
             {/* Personal Info Section */}
