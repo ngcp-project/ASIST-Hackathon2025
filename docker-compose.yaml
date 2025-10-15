@@ -19,7 +19,7 @@ services:
     volumes:
       - ./frontend/my-app:/usr/src/app
       - node_modules:/usr/src/app/node_modules
-    command: npm run dev     
+    command: npm run dev
 volumes:
   node_modules:
     driver: local

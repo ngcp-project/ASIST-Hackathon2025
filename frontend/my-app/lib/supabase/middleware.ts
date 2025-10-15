@@ -1,4 +1,4 @@
-// this file is used to create a middleware for handling Supabase authentication in a Next.js application.
+// this middleware ensures that the Supabase client is available on all pages
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
@@ -11,7 +11,6 @@ export async function middleware(req: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        // NEW API
         getAll() {
           return req.cookies.getAll().map(c => ({ name: c.name, value: c.value }))
         },
@@ -30,6 +29,5 @@ export async function middleware(req: NextRequest) {
   return res
 }
 
-export const config = {
-  matcher: ['/((?!_next|.*\\..*).*)'], // all routes except static assets
-}
+// run on all pages except static assets
+export const config = { matcher: ['/((?!_next|.*\\..*).*)'] }
