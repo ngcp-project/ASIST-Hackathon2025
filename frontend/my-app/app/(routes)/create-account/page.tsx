@@ -80,6 +80,7 @@ export default function CreateAccount() {
         fullName: `${formData.firstName} ${formData.lastName}`
       };
       localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('isLoggedIn', 'true');
       router.push('/profile');
     }
   };

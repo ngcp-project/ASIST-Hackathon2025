@@ -44,7 +44,8 @@ export default function SignIn() {
 
         // Verify email and password match
         if (userData.email === email && userData.password === password) {
-          // Credentials match, proceed to profile
+          // Credentials match, set login state and proceed to profile
+          localStorage.setItem('isLoggedIn', 'true');
           router.push('/profile');
         } else {
           // Credentials don't match

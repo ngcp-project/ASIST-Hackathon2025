@@ -2,8 +2,10 @@
 
 import { UserCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function Profile() {
+  const router = useRouter();
   const [userName, setUserName] = useState("Guest");
   const [userEmail, setUserEmail] = useState("");
   const [userId, setUserId] = useState("");
@@ -20,6 +22,13 @@ export default function Profile() {
     }
   }, []);
 
+  const handleSignOut = () => {
+    // Set login state to false (keep account data)
+    localStorage.setItem('isLoggedIn', 'false');
+    // Redirect to sign-in page
+    router.push('/sign-in');
+  };
+
   return (
     <div className="container mx-auto px-4 py-8 flex justify-center">
       <div className="max-w-5xl w-full">
@@ -33,6 +42,12 @@ export default function Profile() {
             {userId && (
               <p className="text-sm text-gray-600 mt-2">{userId}</p>
             )}
+            <button
+              onClick={handleSignOut}
+              className="mt-6 bg-red-500 text-white px-6 py-2 rounded-md hover:bg-red-600 transition-colors w-1/2"
+            >
+              Sign Out
+            </button>
           </div>
 
           {/* Right Side - Profile Content */}
