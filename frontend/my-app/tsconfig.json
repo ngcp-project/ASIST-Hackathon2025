@@ -1,3 +1,4 @@
+//this file is used to configure typescript settings for the project
 {
   "compilerOptions": {
     "target": "ES2017",
@@ -22,6 +23,6 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "lib/supabase/middleware.ts"],
   "exclude": ["node_modules"]
 }

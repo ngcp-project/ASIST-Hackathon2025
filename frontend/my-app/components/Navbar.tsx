@@ -1,3 +1,4 @@
+// component to represent the navigation bar of the application.
 import Link from 'next/link';
 import Image from 'next/image';
 import { UserCircle } from 'lucide-react';
