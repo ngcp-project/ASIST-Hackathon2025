@@ -48,11 +48,14 @@ export default async function ProgramsPage() {
 
             <p className="text-sm text-gray-500 mb-4">
               <strong>Time:</strong>{" "}
-              {new Date(program.start_time).toLocaleString("en-US", {
-                dateStyle: "medium",timeStyle: "short",})}{" "}-{" "}
-                {new Date(program.end_time).toLocaleString("en-US", {
-                  dateStyle: "medium",timeStyle: "short",})}
+              {new Date(program.start_at).toLocaleString("en-US", {
+              dateStyle: "medium", timeStyle: "short",})}{" "}-{" "}
+              {new Date(program.end_at).toLocaleString("en-US", {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })}
             </p>
+            
           </Link>
         ))}
       </div>

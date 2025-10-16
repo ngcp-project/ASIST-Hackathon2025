@@ -24,7 +24,9 @@ export default function ProgramDetailPage() {
         .single();
 
       if (error) console.error(error);
-      else setProgram(data);
+      else {
+        setProgram(data);
+      }
 
       // Check local storage for registration state
       const stored = localStorage.getItem(`registered_${id}`);
@@ -64,16 +66,19 @@ export default function ProgramDetailPage() {
         <p className="text-sm text-gray-500 mb-1">
           <strong>Location:</strong> {program.location}
         </p>
-        console.log("Program data:", program);
+
         <p className="text-sm text-gray-500 mb-4">
-            <strong>Time:</strong>{" "}
-            {new Date(program.start_time).toLocaleString("en-US", {
-              dateStyle: "medium",timeStyle: "short",
-              })}{" "}
-              -{" "}
-            {new Date(program.end_time).toLocaleString("en-US", {
-              dateStyle: "medium",timeStyle: "short",})}
-        </p>
+  <strong>Time:</strong>{" "}
+  {new Date(program.start_at).toLocaleString("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  })}{" "}
+  -{" "}
+  {new Date(program.end_at).toLocaleString("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  })}
+</p>
 
 
         <button
