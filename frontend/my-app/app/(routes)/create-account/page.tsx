@@ -1,5 +1,5 @@
 'use client'
-// Create Account page component
+
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -31,12 +31,13 @@ export default function CreateAccount() {
     e.preventDefault()
     setServerError(null)
 
+    // basic client validation
     const newErrors = { firstName: '', lastName: '', affiliation: '', email: '', password: '', confirmPassword: '' }
     const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)
 
     if (!formData.firstName.trim()) newErrors.firstName = 'First name is required'
     if (!formData.lastName.trim())  newErrors.lastName  = 'Last name is required'
-    if (!formData.affiliation) newErrors.affiliation = 'Please select an affiliation'
+    if (!formData.affiliation)      newErrors.affiliation = 'Please select an affiliation'
     if (!formData.email.trim())     newErrors.email     = 'Email is required'
     else if (!emailOk)              newErrors.email     = 'Please enter a valid email'
     if (!formData.password.trim())  newErrors.password  = 'Password is required'
@@ -50,20 +51,36 @@ export default function CreateAccount() {
     try {
       setPending(true)
 
-      // 1) Sign up auth user (DB trigger will create public.users row)
+      // 1) Sign up (password). DB trigger will create public.users row.
+      const redirectTo = `${window.location.origin}/auth/callback`
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
-        password: formData.password
+        password: formData.password,
+        options: { emailRedirectTo: redirectTo }
       })
-      if (signUpError) throw signUpError
-
-      // 2) If email confirmation is ON, no session yet
-      if (!signUpData.session) {
-        alert('Check your email to confirm your account. Then sign in.')
+      if (signUpError) {
+        if (signUpError.message.toLowerCase().includes('already registered')) {
+          setServerError('An account with this email already exists.')
+        } else {
+          setServerError(signUpError.message)
+        }
         return
       }
 
-      // 3) If we already have a session, update names and affiliation on the profile row
+      // 2) If email confirmation is ON, there is no session yet.
+      if (!signUpData.session) {
+        // stash profile fields to apply on first login
+        localStorage.setItem('pending_profile', JSON.stringify({
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          affiliation: formData.affiliation
+        }))
+        alert('Check your email to confirm your account. Then sign in.')
+        router.push('/sign-in')
+        return
+      }
+
+      // 3) If we already have a session, update profile now.
       const user = signUpData.user!
       const { error: updateErr } = await supabase
         .from('users')
@@ -73,7 +90,10 @@ export default function CreateAccount() {
           affiliation: formData.affiliation
         })
         .eq('id', user.id)
-      if (updateErr) throw updateErr
+      if (updateErr) {
+        setServerError(updateErr.message)
+        return
+      }
 
       router.push('/profile')
     } catch (err: any) {
@@ -84,11 +104,8 @@ export default function CreateAccount() {
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-  };
+    setFormData({ ...formData, [e.target.name]: e.target.value })
+  }
 
   return (
     <div className="container mx-auto px-4 py-8 flex justify-center min-h-screen">
@@ -97,25 +114,31 @@ export default function CreateAccount() {
           <div className="flex gap-4 mb-4">
             <div className="flex-1">
               <label className="block text-sm font-medium mb-2">First Name</label>
-              <input name="firstName" value={formData.firstName} onChange={handleChange}
-                     placeholder="Enter your first name"
-                     className={`w-full px-4 py-2 border rounded-md ${errors.firstName ? 'border-red-500' : 'border-gray-300'}`} />
+              <input
+                name="firstName"
+                value={formData.firstName}
+                onChange={handleChange}
+                placeholder="Enter your first name"
+                className={`w-full px-4 py-2 border rounded-md ${errors.firstName ? 'border-red-500' : 'border-gray-300'}`}
+              />
               {errors.firstName && <p className="text-red-500 text-sm mt-1">{errors.firstName}</p>}
             </div>
             <div className="flex-1">
               <label className="block text-sm font-medium mb-2">Last Name</label>
-              <input name="lastName" value={formData.lastName} onChange={handleChange}
-                     placeholder="Enter your last name"
-                     className={`w-full px-4 py-2 border rounded-md ${errors.lastName ? 'border-red-500' : 'border-gray-300'}`} />
+              <input
+                name="lastName"
+                value={formData.lastName}
+                onChange={handleChange}
+                placeholder="Enter your last name"
+                className={`w-full px-4 py-2 border rounded-md ${errors.lastName ? 'border-red-500' : 'border-gray-300'}`}
+              />
               {errors.lastName && <p className="text-red-500 text-sm mt-1">{errors.lastName}</p>}
             </div>
           </div>
 
           {/* Affiliation Dropdown */}
           <div className="mb-4">
-            <label htmlFor="affiliation" className="block text-sm font-medium mb-2">
-              Affiliation
-            </label>
+            <label htmlFor="affiliation" className="block text-sm font-medium mb-2">Affiliation</label>
             <select
               id="affiliation"
               name="affiliation"
@@ -130,38 +153,54 @@ export default function CreateAccount() {
               <option value="Alumni" className="text-black">Alumni</option>
               <option value="Faculty and Staff" className="text-black">Faculty and Staff</option>
             </select>
-            {errors.affiliation && (
-              <p className="text-red-500 text-sm mt-1">{errors.affiliation}</p>
-            )}
+            {errors.affiliation && <p className="text-red-500 text-sm mt-1">{errors.affiliation}</p>}
           </div>
 
           <div className="flex gap-4 mb-4">
             <div className="flex-1">
               <label className="block text-sm font-medium mb-2">Email</label>
-              <input type="email" name="email" value={formData.email} onChange={handleChange}
-                     placeholder="Enter your email"
-                     className={`w-full px-4 py-2 border rounded-md ${errors.email ? 'border-red-500' : 'border-gray-300'}`} />
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                placeholder="Enter your email"
+                className={`w-full px-4 py-2 border rounded-md ${errors.email ? 'border-red-500' : 'border-gray-300'}`}
+              />
               {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
             </div>
             <div className="flex-1">
               <label className="block text-sm font-medium mb-2">Password</label>
-              <input type="password" name="password" value={formData.password} onChange={handleChange}
-                     placeholder="Enter your password"
-                     className={`w-full px-4 py-2 border rounded-md ${errors.password ? 'border-red-500' : 'border-gray-300'}`} />
+              <input
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                placeholder="Enter your password"
+                className={`w-full px-4 py-2 border rounded-md ${errors.password ? 'border-red-500' : 'border-gray-300'}`}
+              />
               {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
             </div>
           </div>
 
           <div className="mb-6">
             <label className="block text-sm font-medium mb-2">Confirm Password</label>
-            <input type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange}
-                   placeholder="Confirm your password"
-                   className={`w-full px-4 py-2 border rounded-md ${errors.confirmPassword ? 'border-red-500' : 'border-gray-300'}`} />
+            <input
+              type="password"
+              name="confirmPassword"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              placeholder="Confirm your password"
+              className={`w-full px-4 py-2 border rounded-md ${errors.confirmPassword ? 'border-red-500' : 'border-gray-300'}`}
+            />
             {errors.confirmPassword && <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>}
           </div>
 
-          <button type="submit" disabled={pending}
-                  className="w-full bg-green-500 text-white px-6 py-3 rounded-md hover:bg-green-600 transition-colors disabled:opacity-50">
+          <button
+            type="submit"
+            disabled={pending}
+            className="w-full bg-green-500 text-white px-6 py-3 rounded-md hover:bg-green-600 transition-colors disabled:opacity-50"
+          >
             {pending ? 'Creating…' : 'Create Account'}
           </button>
 
@@ -176,4 +215,3 @@ export default function CreateAccount() {
     </div>
   )
 }
-

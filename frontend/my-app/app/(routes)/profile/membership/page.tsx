@@ -1,7 +1,8 @@
-'use client';
+"use client";
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
 
 export default function Membership() {
   const router = useRouter();
@@ -13,14 +14,30 @@ export default function Membership() {
   const [hasViewedWaiver, setHasViewedWaiver] = useState(false);
 
   useEffect(() => {
-    // Get user affiliation from localStorage
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      const userData = JSON.parse(storedUser);
-      const userAffiliation = userData.affiliation || '';
-      setAffiliation(userAffiliation);
-    }
-  }, []);
+    const supabase = createClient();
+    let mounted = true;
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!mounted) return;
+      const user = data.user;
+      if (!user) {
+        // redirect to sign-in if not authenticated
+        router.replace('/sign-in');
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from('users')
+        .select('affiliation')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (profile) setAffiliation(profile.affiliation ?? '');
+    }).catch(() => {
+      router.replace('/sign-in');
+    });
+
+    return () => { mounted = false; };
+  }, [router]);
 
   // Update price when duration or affiliation changes
   useEffect(() => {
@@ -37,7 +54,7 @@ export default function Membership() {
     }
   }, [affiliation, duration]);
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     // Calculate start and expiration dates
     const startDate = new Date();
     const expireDate = new Date();
@@ -58,21 +75,33 @@ export default function Membership() {
       return `${month}/${day}/${year}`;
     };
 
-    // Get existing user data and add membership to it
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      const userData = JSON.parse(storedUser);
+    // Save membership into users table for the current user
+    const supabase = createClient();
+    try {
+      const { data: session } = await supabase.auth.getUser();
+      const user = session?.user;
+      if (!user) {
+        router.replace('/sign-in');
+        return;
+      }
 
-      // Add membership data to user object
-      userData.membership = {
-        type: duration,
-        startDate: formatDate(startDate),
-        expireDate: formatDate(expireDate),
-        price: price
-      };
+      const { error } = await supabase
+        .from('users')
+        .update({
+          membership: {
+            type: duration,
+            start_date: formatDate(startDate),
+            expire_date: formatDate(expireDate),
+            price: price
+          }
+        })
+        .eq('id', user.id);
 
-      // Save updated user data back to localStorage
-      localStorage.setItem('user', JSON.stringify(userData));
+      if (error) {
+        console.error('Failed to save membership', error);
+      }
+    } catch (err) {
+      console.error('Membership save error', err);
     }
 
     // Redirect back to profile

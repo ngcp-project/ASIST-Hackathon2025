@@ -1,48 +1,40 @@
-'use client';
-
-import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { serverClient } from '@/lib/supabase/server';
 import { UserCircle } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import SignOutButton from '@/components/SignOutButton';
 
-export default function Profile() {
-  const router = useRouter();
-  const [userName, setUserName] = useState("Guest");
-  const [userEmail, setUserEmail] = useState("");
-  const [userAffiliation, setUserAffiliation] = useState("");
-  const [userId, setUserId] = useState("");
-  const [membershipType, setMembershipType] = useState("None");
-  const [startDate, setStartDate] = useState("-");
-  const [expireDate, setExpireDate] = useState("-");
-  const [hasMembership, setHasMembership] = useState(false);
+type ProfileRow = {
+  first_name?: string | null;
+  last_name?: string | null;
+  affiliation?: string | null;
+  membership?: any;
+  start_date?: string | null;
+  expire_date?: string | null;
+}
 
-  useEffect(() => {
-    // Retrieve user data from localStorage
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      const userData = JSON.parse(storedUser);
-      setUserName(userData.fullName);
-      setUserEmail(userData.email);
-      setUserAffiliation(userData.affiliation || "Not specified");
-      // Generate a placeholder ID (you can replace this with actual ID from database later)
-      setUserId(`ID-${Math.random().toString(36).substr(2, 9).toUpperCase()}`);
+export default async function Profile() {
+  const supabase = await serverClient();
 
-      // Check if user has membership data
-      if (userData.membership) {
-        setMembershipType(userData.membership.type);
-        setStartDate(userData.membership.startDate);
-        setExpireDate(userData.membership.expireDate);
-        setHasMembership(true);
-      }
-    }
-  }, []);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return redirect('/sign-in');
 
-  const handleSignOut = () => {
-    // Set login state to false (keep account data)
-    localStorage.setItem('isLoggedIn', 'false');
-    // Redirect to sign-in page
-    router.push('/sign-in');
-  };
+  const profileRes = await supabase
+    .from('users')
+    .select('first_name,last_name,affiliation,membership,start_date,expire_date')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  const profile = (profileRes as any).data as ProfileRow | null;
+
+  const userName = profile ? `${profile.first_name ?? ''} ${profile.last_name ?? ''}`.trim() || 'Member' : (user.email?.split('@')[0] ?? 'Member');
+  const userEmail = user.email ?? '';
+  const userId = user.id;
+
+  const membershipType = profile?.membership?.type ?? 'None';
+  const startDate = profile?.start_date ?? '-';
+  const expireDate = profile?.expire_date ?? '-';
+  const hasMembership = !!profile?.membership;
 
   return (
     <div className="container mx-auto px-4 py-8 flex justify-center">
@@ -57,12 +49,7 @@ export default function Profile() {
             {userId && (
               <p className="text-sm text-gray-600 mt-2">{userId}</p>
             )}
-            <button
-              onClick={handleSignOut}
-              className="mt-6 bg-red-500 text-white px-6 py-2 rounded-md hover:bg-red-600 transition-colors w-1/2"
-            >
-              Sign Out
-            </button>
+            <SignOutButton />
           </div>
 
           {/* Right Side - Profile Content */}
@@ -106,7 +93,7 @@ export default function Profile() {
                 </div>
                 <div className="flex items-center">
                   <span className="font-semibold w-32">Affiliation:</span>
-                  <span className="text-gray-600">{userAffiliation}</span>
+                  <span className="text-gray-600">{profile?.affiliation ?? 'Not specified'}</span>
                 </div>
               </div>
             </div>

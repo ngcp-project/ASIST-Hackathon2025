@@ -1,5 +1,5 @@
 'use client'
-// Sign-in page component
+
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -19,8 +19,9 @@ export default function SignIn() {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
     setServerError(null)
-    const newErrors = { email: '', password: '' }
 
+    // client-side validation
+    const newErrors = { email: '', password: '' }
     if (!email.trim()) newErrors.email = 'Email is required'
     else if (!validateEmail(email)) newErrors.email = 'Please enter a valid email'
     if (!password.trim()) newErrors.password = 'Password is required'
@@ -28,55 +29,48 @@ export default function SignIn() {
     setErrors(newErrors)
     if (newErrors.email || newErrors.password) return
 
+    // attempt sign-in
     try {
       setPending(true)
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) throw error
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) {
+        // map common Supabase auth errors to friendly messages
+        if (error.message.toLowerCase().includes('invalid login')) {
+          setServerError('Invalid email or password')
+        } else {
+          setServerError(error.message)
+        }
+        return
+      }
+
+      // If there was a pending profile from signup (email-confirmation flow), apply it now
+      try {
+        const user = data.user;
+        if (user && typeof window !== 'undefined') {
+          const pending = localStorage.getItem('pending_profile')
+          if (pending) {
+            const profile = JSON.parse(pending)
+            // upsert into public.users using the authenticated user's id
+            const upsert = await supabase
+              .from('users')
+              .upsert([{ id: user.id, first_name: profile.first_name, last_name: profile.last_name, affiliation: profile.affiliation }])
+            if (!upsert.error) {
+              localStorage.removeItem('pending_profile')
+            }
+          }
+        }
+      } catch (applyErr) {
+        // non-fatal; still navigate to profile
+        console.warn('Failed to apply pending profile', applyErr)
+      }
+
       router.push('/profile')
     } catch (err: any) {
       setServerError(err?.message ?? 'Sign-in failed')
     } finally {
       setPending(false)
     }
-
-    // Validate password
-    if (!password.trim()) {
-      newErrors.password = 'Password is required';
-    } else if (password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
-    }
-
-    setErrors(newErrors);
-
-    // If no errors, verify credentials
-    if (!newErrors.email && !newErrors.password) {
-      // Check if user exists in localStorage
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        const userData = JSON.parse(storedUser);
-
-        // Verify email and password match
-        if (userData.email === email && userData.password === password) {
-          // Credentials match, set login state and proceed to profile
-          localStorage.setItem('isLoggedIn', 'true');
-          router.push('/profile');
-        } else {
-          // Credentials don't match
-          if (userData.email !== email) {
-            newErrors.email = 'Email not found';
-          }
-          if (userData.password !== password) {
-            newErrors.password = 'Incorrect password';
-          }
-          setErrors(newErrors);
-        }
-      } else {
-        // No account found
-        newErrors.email = 'No account found. Please create an account first.';
-        setErrors(newErrors);
-      }
-    }
-  };
+  }
 
   return (
     <div className="container mx-auto px-4 py-8 flex justify-center min-h-screen">
@@ -111,7 +105,7 @@ export default function SignIn() {
           {serverError && <p className="text-red-600 text-sm mt-3">{serverError}</p>}
         </form>
 
-        <div className="text-center mt-4">
+        <div className="text-center mt-4 space-y-2">
           <a href="/create-account" className="text-sm text-blue-600 hover:underline">Create Account</a>
         </div>
       </div>

@@ -7,17 +7,32 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
 export default function Navbar() {
-  const [isSignedIn, setIsSignedIn] = useState<boolean | null>(null);
+  // start false to avoid accidental navigation to /profile before we know state
+  const [isSignedIn, setIsSignedIn] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
+
   useEffect(() => {
     const supabase = createClient();
+    let mounted = true;
+
     supabase.auth.getUser().then(({ data }) => {
+      if (!mounted) return;
       setIsSignedIn(!!data.user);
+      setLoading(false);
+    }).catch(() => {
+      if (!mounted) return;
+      setIsSignedIn(false);
+      setLoading(false);
     });
+
     // Listen for sign-in/sign-out events
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
       setIsSignedIn(!!session?.user);
+      setLoading(false);
     });
-    return () => { listener?.subscription.unsubscribe(); };
+
+    return () => { mounted = false; listener?.subscription?.unsubscribe(); };
   }, []);
 
   return (
@@ -40,7 +55,11 @@ export default function Navbar() {
             <Link href="/programs" className="text-sky-900 font-semibold hover:bg-gray-200 hover:opacity-50 px-3 py-2 rounded-full flex items-center text-lg">
               Programs
             </Link>
-            <Link href={isSignedIn ? "/profile" : "/sign-in"} className="hover:bg-gray-200 hover:opacity-50 px-3 py-2 rounded-full flex items-center gap-2">
+            <Link
+              href={isSignedIn ? "/profile" : "/sign-in"}
+              className={`hover:bg-gray-200 hover:opacity-50 px-3 py-2 rounded-full flex items-center gap-2 ${loading ? 'pointer-events-none opacity-60' : ''}`}
+              aria-disabled={loading}
+            >
               <UserCircle size={40} className="text-sky-900" />
             </Link>
           </div>
