@@ -75,7 +75,7 @@ export default function Membership() {
       return `${month}/${day}/${year}`;
     };
 
-    // Save membership into users table for the current user
+    // Record membership purchase as a transaction (canonical)
     const supabase = createClient();
     try {
       const { data: session } = await supabase.auth.getUser();
@@ -85,17 +85,17 @@ export default function Membership() {
         return;
       }
 
+      // Pick a plan based on duration
+      const planName = duration === 'Full Year' ? 'Annual Member (12 mo)' : 'Fall 2025 Semester Pass';
+      const { data: plan } = await supabase
+        .from('membership_plans')
+        .select('id')
+        .eq('name', planName)
+        .maybeSingle();
+
       const { error } = await supabase
-        .from('users')
-        .update({
-          membership: {
-            type: duration,
-            start_date: formatDate(startDate),
-            expire_date: formatDate(expireDate),
-            price: price
-          }
-        })
-        .eq('id', user.id);
+        .from('transactions')
+        .insert([{ user_id: user.id, plan_id: plan?.id ?? null, price }]);
 
       if (error) {
         console.error('Failed to save membership', error);

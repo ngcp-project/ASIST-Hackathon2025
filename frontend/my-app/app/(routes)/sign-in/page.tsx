@@ -50,11 +50,12 @@ export default function SignIn() {
           const pending = localStorage.getItem('pending_profile')
           if (pending) {
             const profile = JSON.parse(pending)
-            // upsert into public.users using the authenticated user's id
-            const upsert = await supabase
+            // Use update to avoid requiring INSERT policy under RLS
+            const { error: updErr } = await supabase
               .from('users')
-              .upsert([{ id: user.id, first_name: profile.first_name, last_name: profile.last_name, affiliation: profile.affiliation }])
-            if (!upsert.error) {
+              .update({ first_name: profile.first_name, last_name: profile.last_name, affiliation: profile.affiliation })
+              .eq('id', user.id)
+            if (!updErr) {
               localStorage.removeItem('pending_profile')
             }
           }

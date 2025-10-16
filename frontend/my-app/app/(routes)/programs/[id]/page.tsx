@@ -1,14 +1,21 @@
-import React from "react";
-import Link from "next/link";
-import { getProgramById } from "@/lib/mockData/programs";
+import { serverClient } from '@/lib/supabase/server';
+import Link from 'next/link';
 
 interface ProgramPageProps {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }
 
 export default async function ProgramDetailPage({ params }: ProgramPageProps) {
-  const { id } = await params;
-  const program = await getProgramById(id);
+  const { id } = params;
+  const supabase = await serverClient();
+
+  const { data: programRes } = await supabase
+    .from('programs')
+    .select('id,title,description,location,start_at,end_at')
+    .eq('id', id)
+    .maybeSingle();
+
+  const program: any = (programRes as any) ?? null;
 
   if (!program) {
     return (
@@ -22,12 +29,12 @@ export default async function ProgramDetailPage({ params }: ProgramPageProps) {
   }
 
   const formatTime = (time: string) =>
-    new Date(time).toLocaleString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
+    new Date(time).toLocaleString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
     });
 
   return (
@@ -47,10 +54,10 @@ export default async function ProgramDetailPage({ params }: ProgramPageProps) {
               <strong>Location:</strong> {program.location}
             </p>
             <p>
-              <strong>Starts:</strong> {formatTime(program.startTime)}
+              <strong>Starts:</strong> {formatTime(program.start_at)}
             </p>
             <p>
-              <strong>Ends:</strong> {formatTime(program.endTime)}
+              <strong>Ends:</strong> {formatTime(program.end_at)}
             </p>
           </div>
 

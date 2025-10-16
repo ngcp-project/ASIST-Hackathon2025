@@ -21,20 +21,51 @@ export default async function Profile() {
 
   const profileRes = await supabase
     .from('users')
-    .select('first_name,last_name,affiliation,membership,start_date,expire_date')
+    .select('first_name,last_name,affiliation')
     .eq('id', user.id)
     .maybeSingle();
 
   const profile = (profileRes as any).data as ProfileRow | null;
-
-  const userName = profile ? `${profile.first_name ?? ''} ${profile.last_name ?? ''}`.trim() || 'Member' : (user.email?.split('@')[0] ?? 'Member');
+  const nameFromProfile = profile ? `${profile.first_name ?? ''} ${profile.last_name ?? ''}`.trim() : '';
+  const userName = nameFromProfile || (user.email?.split('@')[0] ?? 'Member');
   const userEmail = user.email ?? '';
   const userId = user.id;
 
-  const membershipType = profile?.membership?.type ?? 'None';
-  const startDate = profile?.start_date ?? '-';
-  const expireDate = profile?.expire_date ?? '-';
-  const hasMembership = !!profile?.membership;
+  // Fetch active membership transaction (canonical source)
+  const txnRes = await supabase
+    .from('transactions')
+    .select('id,plan_id,price,start_date,end_date,status')
+    .eq('user_id', user.id)
+    .eq('status', 'ACTIVE')
+    .lte('start_date', new Date().toISOString().slice(0,10))
+    .gte('end_date', new Date().toISOString().slice(0,10))
+    .order('purchased_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const activeTxn = (txnRes as any).data ?? null;
+  const hasMembership = !!activeTxn;
+  // Fetch plan name for friendly display when we have a plan_id
+  let membershipType = 'None';
+  if (activeTxn?.plan_id) {
+    const planRes = await supabase
+      .from('membership_plans')
+      .select('name')
+      .eq('id', activeTxn.plan_id)
+      .maybeSingle();
+    membershipType = (planRes as any).data?.name ?? String(activeTxn.plan_id);
+  }
+  const startDate = activeTxn ? String(activeTxn.start_date) : '-';
+  const expireDate = activeTxn ? String(activeTxn.end_date) : '-';
+
+  // Fetch registration history (join with programs)
+  const regsRes = await supabase
+    .from('registrations')
+    .select('id,status,created_at,programs(id,title,start_at,end_at)')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+
+  const registrations = (regsRes as any).data ?? [];
 
   return (
     <div className="container mx-auto px-4 py-8 flex justify-center">
@@ -70,12 +101,30 @@ export default async function Profile() {
                   <span className="text-gray-600">{expireDate}</span>
                 </div>
               </div>
-              {!hasMembership && (
-                <Link href="/profile/membership">
-                  <button className="bg-green-500 text-white px-6 py-2 rounded-md hover:bg-green-600 transition-colors">
-                    Add Membership
-                  </button>
-                </Link>
+            </div>
+
+            {/* Registration History */}
+            <div className="mb-8">
+              <h3 className="text-xl font-semibold mb-4">Registration History</h3>
+              {registrations.length === 0 ? (
+                <p className="text-gray-600">You have no registrations yet.</p>
+              ) : (
+                <ul className="space-y-3">
+                  {registrations.map((r: any) => (
+                    <li key={r.id} className="border p-3 rounded">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="font-semibold">{r.programs?.title ?? 'Program'}</div>
+                          <div className="text-sm text-gray-600">{r.status} • {new Date(r.created_at).toLocaleString()}</div>
+                        </div>
+                        <div className="flex items-center">
+                          <div className="text-sm text-gray-500">{r.programs?.start_at ? new Date(r.programs.start_at).toLocaleDateString() : ''}</div>
+                          {/* cancellation disabled in UI for now */}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
 

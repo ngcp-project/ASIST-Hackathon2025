@@ -69,11 +69,14 @@ export default function CreateAccount() {
 
       // 2) If email confirmation is ON, there is no session yet.
       if (!signUpData.session) {
+        // compute role from affiliation for server-side RLS checks
+        const roleForAff = formData.affiliation === 'Student' ? 'STUDENT' : (formData.affiliation === 'Faculty and Staff' ? 'STAFF' : 'MEMBER')
         // stash profile fields to apply on first login
         localStorage.setItem('pending_profile', JSON.stringify({
           first_name: formData.firstName,
           last_name: formData.lastName,
-          affiliation: formData.affiliation
+          affiliation: formData.affiliation,
+          role: roleForAff
         }))
         alert('Check your email to confirm your account. Then sign in.')
         router.push('/sign-in')
@@ -82,12 +85,16 @@ export default function CreateAccount() {
 
       // 3) If we already have a session, update profile now.
       const user = signUpData.user!
+      // compute role from affiliation for server-side RLS checks
+      const roleForAff = formData.affiliation === 'Student' ? 'STUDENT' : (formData.affiliation === 'Faculty and Staff' ? 'STAFF' : 'MEMBER')
+
       const { error: updateErr } = await supabase
         .from('users')
         .update({
           first_name: formData.firstName,
           last_name: formData.lastName,
-          affiliation: formData.affiliation
+          affiliation: formData.affiliation,
+          role: roleForAff
         })
         .eq('id', user.id)
       if (updateErr) {
