@@ -1,25 +1,26 @@
-"use client";
-
-import React from "react";
-import { ChevronDown } from "lucide-react";
+// app/(routes)/programs/page.tsx
+import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
+import {ChevronDown} from "lucide-react";
 
-export default function Programs() {
-  //mock data
-  const mockPrograms = [
-    { id: 1, name: "Fitness Program" },
-    { id: 2, name: "Student Union" },
-    { id: 3, name: "Recreation Center" },
-    { id: 4, name: "Events & Activities" },
-  ];
+export default async function ProgramsPage() {
+  const supabase = createClient();
+
+  const { data: programs, error } = await supabase.from("programs").select("*");
+
+  if (error) {
+    console.error("Error fetching programs:", error);
+    return <p className="text-red-500">Failed to load programs.</p>;
+  }
 
   return (
+    
     <div className="min-h-screen flex flex-col">
 
       <main className="flex flex-col items-center px-6 py-8 w-full">
         {/*Title*/}
         <div className="bg-gray-300 w-full max-w-4xl h-32 flex items-center justify-center text-xl font-semibold text-black rounded-md">
-          ASICPP
+          Upcoming Activities
         </div>
 
         {/*Filter*/}
@@ -33,18 +34,29 @@ export default function Programs() {
         </div>
 
         {/*Program grid*/}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 mt-6 max-w-4xl w-full">
-          {mockPrograms.map((program) => (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 mt-6 max-w-4xl w-">
+          {programs?.map((program) => (
             <Link
-              key={program.id}
-              href={`/programs/${program.id}`}
-              className="bg-gray-300 aspect-square flex items-center justify-center text-sm font-medium text-black rounded-md hover:bg-gray-400 transition cursor-pointer"
-            >
-              {program.name}
-            </Link>
-          ))}
-        </div>
+            key={program.id}
+            href={`/programs/${program.id}`}
+            className="p-6 border rounded-lg shadow hover:shadow-lg transition bg-white"
+          >
+            <h2 className="text-xl font-semibold">{program.title}</h2>
+            <p className="text-sm mt-3 text-gray-500">
+              📍 {program.location}
+            </p>
+
+            <p className="text-sm text-gray-500 mb-4">
+              <strong>Time:</strong>{" "}
+              {new Date(program.start_time).toLocaleString("en-US", {
+                dateStyle: "medium",timeStyle: "short",})}{" "}-{" "}
+                {new Date(program.end_time).toLocaleString("en-US", {
+                  dateStyle: "medium",timeStyle: "short",})}
+            </p>
+          </Link>
+        ))}
+      </div>
       </main>
     </div>
-  )
+  );
 }
