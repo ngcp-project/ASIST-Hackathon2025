@@ -1,11 +1,6 @@
 // This is the main page component for the Next.js application.
-import Image from "next/image";
+import { redirect } from 'next/navigation';
 
 export default function Home() {
-  return (
-    <>
-      <div>
-        <h1>Welcome to ASICPP</h1>
-      </div>
-    </>);
+  redirect('/programs');
 }

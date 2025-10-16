@@ -37,63 +37,67 @@ export default async function Profile() {
   const hasMembership = !!profile?.membership;
 
   return (
-    <div className="container mx-auto px-4 py-8 flex justify-center">
-      <div className="max-w-5xl w-full">
-        <div className="flex gap-8">
-          {/* Left Side - Profile Avatar and Name */}
-          <div className="w-64 flex flex-col items-center">
-            <div className="mb-4">
-              <UserCircle size={150} className="text-gray-400" />
-            </div>
-            <h2 className="text-2xl font-bold text-center">{userName}</h2>
-            {userId && (
-              <p className="text-sm text-gray-600 mt-2">{userId}</p>
-            )}
-            <SignOutButton />
-          </div>
-
-          {/* Right Side - Profile Content */}
-          <div className="flex-1">
-            {/* Membership Information */}
-            <div className="mb-8">
-              <div className="space-y-3 mb-6">
-                <div className="flex items-center">
-                  <span className="font-semibold w-40">Membership Type:</span>
-                  <span className="text-gray-600">{membershipType}</span>
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-gray-300 to-green-600">
+      <div className="container mx-auto px-4 py-8 flex justify-center">
+        <div className="max-w-5xl w-full">
+          <div className="bg-gray-100 rounded-2xl p-8" style={{ boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)' }}>
+            <div className="flex gap-8">
+              {/* Left Side - Profile Avatar and Name */}
+              <div className="w-64 flex flex-col items-center">
+                <div className="mb-4">
+                  <UserCircle size={150} className="text-gray-400" />
                 </div>
-                <div className="flex items-center">
-                  <span className="font-semibold w-40">Start Date:</span>
-                  <span className="text-gray-600">{startDate}</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="font-semibold w-40">Expire Date:</span>
-                  <span className="text-gray-600">{expireDate}</span>
-                </div>
+                <h2 className="text-2xl font-bold text-center">{userName}</h2>
+                {userId && (
+                  <p className="text-sm text-gray-600 mt-2">{userId}</p>
+                )}
+                <SignOutButton />
               </div>
-              {!hasMembership && (
-                <Link href="/profile/membership">
-                  <button className="bg-green-500 text-white px-6 py-2 rounded-md hover:bg-green-600 transition-colors">
-                    Add Membership
-                  </button>
-                </Link>
-              )}
-            </div>
 
-            {/* Personal Info Section */}
-            <div>
-              <h2 className="text-2xl font-bold mb-4">Personal Info</h2>
-              <div className="space-y-3">
-                <div className="flex items-center">
-                  <span className="font-semibold w-32">Name:</span>
-                  <span className="text-gray-600">{userName}</span>
+              {/* Right Side - Profile Content */}
+              <div className="flex-1">
+                {/* Membership Information */}
+                <div className="mb-8">
+                  <div className="space-y-3 mb-6">
+                    <div className="flex items-center">
+                      <span className="font-semibold w-40">Membership Type:</span>
+                      <span className="text-gray-600">{membershipType}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="font-semibold w-40">Start Date:</span>
+                      <span className="text-gray-600">{startDate}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="font-semibold w-40">Expire Date:</span>
+                      <span className="text-gray-600">{expireDate}</span>
+                    </div>
+                  </div>
+                  {!hasMembership && (
+                    <Link href="/profile/membership">
+                      <button className="bg-green-500 text-white px-6 py-2 rounded-md hover:bg-green-600 transition-colors">
+                        Add Membership
+                      </button>
+                    </Link>
+                  )}
                 </div>
-                <div className="flex items-center">
-                  <span className="font-semibold w-32">Email:</span>
-                  <span className="text-gray-600">{userEmail}</span>
-                </div>
-                <div className="flex items-center">
-                  <span className="font-semibold w-32">Affiliation:</span>
-                  <span className="text-gray-600">{profile?.affiliation ?? 'Not specified'}</span>
+
+                {/* Personal Info Section */}
+                <div>
+                  <h2 className="text-2xl font-bold mb-4">Personal Info</h2>
+                  <div className="space-y-3">
+                    <div className="flex items-center">
+                      <span className="font-semibold w-32">Name:</span>
+                      <span className="text-gray-600">{userName}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="font-semibold w-32">Email:</span>
+                      <span className="text-gray-600">{userEmail}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="font-semibold w-32">Affiliation:</span>
+                      <span className="text-gray-600">{profile?.affiliation ?? 'Not specified'}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
