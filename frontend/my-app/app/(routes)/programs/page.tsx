@@ -6,17 +6,18 @@ export default async function Programs() {
   const supabase = await serverClient();
   const { data: programs } = await supabase
     .from('programs')
-    .select('id,title')
+    .select('id,title,location,start_at,end_at')
     .order('start_at', { ascending: true });
 
   const list = (programs as any) ?? [];
 
   return (
+
     <div className="min-h-screen flex flex-col">
       <main className="flex flex-col items-center px-6 py-8 w-full">
         {/*Title*/}
         <div className="bg-gray-300 w-full max-w-4xl h-32 flex items-center justify-center text-xl font-semibold text-black rounded-md">
-          ASICPP
+          Upcoming Activities
         </div>
 
         {/*Filter (stub)*/}
@@ -28,18 +29,31 @@ export default async function Programs() {
         </div>
 
         {/*Program grid*/}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 mt-6 max-w-4xl w-full">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6 mt-6 max-w-4xl w-">
           {list.map((program: any) => (
             <Link
-              key={program.id}
-              href={`/programs/${program.id}`}
-              className="bg-gray-300 aspect-square flex items-center justify-center text-sm font-medium text-black rounded-md hover:bg-gray-400 transition cursor-pointer"
-            >
-              {program.title}
-            </Link>
-          ))}
-        </div>
+            key={program.id}
+            href={`/programs/${program.id}`}
+            className="p-6 border rounded-lg shadow hover:shadow-lg transition bg-white"
+          >
+            <h2 className="text-xl font-semibold">{program.title}</h2>
+            <p className="text-sm mt-3 text-gray-500">
+              📍 {program.location}
+            </p>
+
+            <p className="text-sm text-gray-500 mb-4">
+              <strong>Time:</strong>{" "}
+              {new Date(program.start_at).toLocaleString("en-US", {
+              dateStyle: "medium", timeStyle: "short",})}{" "}-{" "}
+              {new Date(program.end_at).toLocaleString("en-US", {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })}
+            </p>
+          </Link>
+        ))}
+      </div>
       </main>
     </div>
-  )
+  );
 }

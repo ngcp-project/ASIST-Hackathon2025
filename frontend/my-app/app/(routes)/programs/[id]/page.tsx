@@ -1,77 +1,97 @@
-import { serverClient } from '@/lib/supabase/server';
-import Link from 'next/link';
+// app/programs/[id]/page.tsx
+"use client";
 
-interface ProgramPageProps {
-  params: { id: string };
-}
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
-export default async function ProgramDetailPage({ params }: ProgramPageProps) {
-  const { id } = params;
-  const supabase = await serverClient();
+export default function ProgramDetailPage() {
+  const { id } = useParams();
+  const router = useRouter();
+  const supabase = createClient();
 
-  const { data: programRes } = await supabase
-    .from('programs')
-    .select('id,title,description,location,start_at,end_at')
-    .eq('id', id)
-    .maybeSingle();
+  const [program, setProgram] = useState<any>(null);
+  const [isRegistered, setIsRegistered] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const program: any = (programRes as any) ?? null;
+  // Fetch program data from Supabase
+  useEffect(() => {
+    const fetchProgram = async () => {
+      const { data, error } = await supabase
+        .from("programs")
+        .select("*")
+        .eq("id", id)
+        .single();
 
-  if (!program) {
-    return (
-      <div className="min-h-screen flex flex-col">
-        <main className="flex flex-col items-center justify-center h-full text-gray-700">
-          <h1 className="text-2xl font-semibold mb-4">Program not found</h1>
-          <p>Requested program (ID: {id}) does not exist.</p>
-        </main>
-      </div>
-    );
-  }
+      if (error) console.error(error);
+      else {
+        setProgram(data);
+      }
 
-  const formatTime = (time: string) =>
-    new Date(time).toLocaleString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
+      // Check local storage for registration state
+      const stored = localStorage.getItem(`registered_${id}`);
+      if (stored === "true") setIsRegistered(true);
+
+      setLoading(false);
+    };
+
+    fetchProgram();
+  }, [id, supabase]);
+
+  const handleRegister = () => {
+    if (isRegistered) {
+      // Unregister
+      localStorage.removeItem(`registered_${id}`);
+      setIsRegistered(false);
+    } else {
+      // Go to waiver first
+      router.push(`/programs/${id}/waiver`);
+    }
+  };
+
+  // After waiver, the page can re-check localStorage (see below)
+  useEffect(() => {
+    const stored = localStorage.getItem(`registered_${id}`);
+    if (stored === "true") setIsRegistered(true);
+  }, [id]);
+
+  if (loading) return <p className="text-center mt-10">Loading...</p>;
+  if (!program) return <p className="text-center mt-10">Program not found</p>;
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <main className="flex flex-col items-center px-6 py-12">
-        <div className="bg-gray-100 w-full max-w-3xl p-8 rounded-md shadow text-left">
-          <h1 className="text-3xl font-bold mb-3 text-gray-900">
-            {program.title}
-          </h1>
+    <div className="flex flex-col items-center mt-6 min-h-screen p-6">
+      <div className="max-w-md w-full bg-white shadow-lg rounded-2xl p-6">
+        <h1 className="text-2xl font-bold mb-3 text-center">{program.title}</h1>
+        <p className="text-gray-700 mb-3">{program.description}</p>
+        <p className="text-sm text-gray-500 mb-1">
+          <strong>Location:</strong> {program.location}
+        </p>
 
-          <p className="text-gray-700 mb-6 leading-relaxed">
-            {program.description}
-          </p>
+        <p className="text-sm text-gray-500 mb-4">
+  <strong>Time:</strong>{" "}
+  {new Date(program.start_at).toLocaleString("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  })}{" "}
+  -{" "}
+  {new Date(program.end_at).toLocaleString("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  })}
+</p>
 
-          <div className="border-t border-gray-300 pt-4 space-y-2 text-gray-800">
-            <p>
-              <strong>Location:</strong> {program.location}
-            </p>
-            <p>
-              <strong>Starts:</strong> {formatTime(program.start_at)}
-            </p>
-            <p>
-              <strong>Ends:</strong> {formatTime(program.end_at)}
-            </p>
-          </div>
 
-          {/*Register Button */}
-          <div className="mt-8 flex justify-center">
-            <Link
-              href={`/programs/${program.id}/waiver`}
-              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
-            >
-              Register
-            </Link>
-          </div>
-        </div>
-      </main>
+        <button
+          onClick={handleRegister}
+          className={`w-full py-2 rounded-lg font-semibold transition ${
+            isRegistered
+              ? "bg-red-500 text-white hover:bg-red-600"
+              : "bg-blue-600 text-white hover:bg-blue-700"
+          }`}
+        >
+          {isRegistered ? "Unregister" : "Register"}
+        </button>
+      </div>
     </div>
   );
 }
