@@ -13,14 +13,27 @@ services:
       context: ./frontend/my-app
     environment:
       NODE_ENV: development
+    env_file:
+      - ./frontend/my-app/.env.local
     ports:
       - 3000:3000
     working_dir: /usr/src/app
+    # Run as root in dev to avoid file permission issues when the host
+    # directory is bind-mounted (Windows host paths can make non-root users
+    # unable to write files inside the container). This is safe for local
+    # development only.
+    user: "0:0"
     volumes:
       - ./frontend/my-app:/usr/src/app
       - node_modules:/usr/src/app/node_modules
+      # Put Next build artifacts in a container-managed named volume so
+      # Turbopack/Next.js can write files without hitting host permission issues.
+      - next_build:/usr/src/app/.next
     command: npm run dev
 volumes:
   node_modules:
+    driver: local
+  # Named volume for Next build output to avoid writing into host filesystem
+  next_build:
     driver: local
 

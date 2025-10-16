@@ -43,6 +43,11 @@ export default function SignIn() {
         return
       }
 
+      // Ensure a public.users row exists for this auth user
+      try {
+        await supabase.rpc('ensure_user_profile');
+      } catch {}
+
       // If there was a pending profile from signup (email-confirmation flow), apply it now
       try {
         const user = data.user;

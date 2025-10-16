@@ -78,7 +78,7 @@ export default function ProfileClient({ initial }: { initial: Initial }) {
               </div>
               <a
                 className="inline-block bg-green-500 text-white px-6 py-2 rounded-md hover:bg-green-600 transition-colors"
-                href="/memberships"
+                href="/profile/membership"
               >
                 Add Membership
               </a>

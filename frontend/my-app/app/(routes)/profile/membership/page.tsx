@@ -41,17 +41,15 @@ export default function Membership() {
 
   // Update price when duration or affiliation changes
   useEffect(() => {
-    if (affiliation === 'Student') {
+    const isStudent = affiliation === 'Student';
+    if (isStudent) {
       setPrice(0);
-    } else if (affiliation === 'Alumni' || affiliation === 'Faculty and Staff') {
-      if (duration === 'Semester') {
-        setPrice(241);
-      } else if (duration === 'Full Year') {
-        setPrice(482);
-      } else {
-        setPrice(0); // No duration selected yet
-      }
+      return;
     }
+    // For everyone else (Alumni, Faculty and Staff, or Not specified), price depends on duration
+    if (duration === 'Semester') setPrice(241);
+    else if (duration === 'Full Year') setPrice(482);
+    else setPrice(0);
   }, [affiliation, duration]);
 
   const handleRegister = async () => {
@@ -87,18 +85,41 @@ export default function Membership() {
 
       // Pick a plan based on duration
       const planName = duration === 'Full Year' ? 'Annual Member (12 mo)' : 'Fall 2025 Semester Pass';
-      const { data: plan } = await supabase
+      const { data: plan, error: planErr } = await supabase
         .from('membership_plans')
         .select('id')
         .eq('name', planName)
         .maybeSingle();
 
-      const { error } = await supabase
-        .from('transactions')
-        .insert([{ user_id: user.id, plan_id: plan?.id ?? null, price }]);
+      if (planErr) {
+        console.error('Failed to fetch membership plan', planErr);
+        alert('Unable to fetch membership plan. Please try again later.');
+        return;
+      }
+      if (!plan?.id) {
+        alert('Membership plan not found. Please run the DB seed or configure plans.');
+        return;
+      }
 
-      if (error) {
-        console.error('Failed to save membership', error);
+      // Ensure user profile exists (avoids FK errors if the trigger didn't run yet)
+      try {
+        await supabase.rpc('ensure_user_profile');
+      } catch {}
+
+      // Persist canonical membership as a transaction. The DB trigger `set_membership_dates`
+      // will set start_date/end_date based on the plan. We rely on RLS to allow inserts by the user.
+      try {
+        const { error: txErr } = await supabase
+          .from('transactions')
+          .insert([{ user_id: user.id, plan_id: plan.id, price }]);
+
+        if (txErr) {
+          console.error('Transactions insert failed', txErr);
+          alert('Failed to register membership: ' + (txErr?.message ?? 'Unknown error'));
+        }
+      } catch (e: any) {
+        console.error('Membership save error', e);
+        alert('Failed to register membership: ' + (e?.message ?? String(e)));
       }
     } catch (err) {
       console.error('Membership save error', err);

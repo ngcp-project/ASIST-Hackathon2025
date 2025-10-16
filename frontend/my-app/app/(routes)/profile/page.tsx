@@ -13,6 +13,9 @@ type ProfileRow = {
   expire_date?: string | null;
 }
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function Profile() {
   const supabase = await serverClient();
 
@@ -32,7 +35,7 @@ export default async function Profile() {
   const userId = user.id;
 
   // Fetch active membership transaction (canonical source)
-  const txnRes = await supabase
+  let txnRes = await supabase
     .from('transactions')
     .select('id,plan_id,price,start_date,end_date,status')
     .eq('user_id', user.id)
@@ -42,8 +45,20 @@ export default async function Profile() {
     .order('purchased_at', { ascending: false })
     .limit(1)
     .maybeSingle();
+  let activeTxn = (txnRes as any).data ?? null;
 
-  const activeTxn = (txnRes as any).data ?? null;
+  // Fallback: if trigger hasn’t populated dates yet, show the latest ACTIVE txn regardless of date window
+  if (!activeTxn) {
+    const latestRes = await supabase
+      .from('transactions')
+      .select('id,plan_id,price,start_date,end_date,status')
+      .eq('user_id', user.id)
+      .eq('status', 'ACTIVE')
+      .order('purchased_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    activeTxn = (latestRes as any).data ?? null;
+  }
   const hasMembership = !!activeTxn;
   // Fetch plan name for friendly display when we have a plan_id
   let membershipType = 'None';
@@ -68,92 +83,88 @@ export default async function Profile() {
   const registrations = (regsRes as any).data ?? [];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-gray-300 to-green-600">
-      <div className="container mx-auto px-4 py-8 flex justify-center">
-        <div className="max-w-5xl w-full">
-          <div className="bg-gray-100 rounded-2xl p-8" style={{ boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8)' }}>
-            <div className="flex gap-8">
-              {/* Left Side - Profile Avatar and Name */}
-              <div className="w-64 flex flex-col items-center">
-                <div className="mb-4">
-                  <UserCircle size={150} className="text-gray-400" />
-                </div>
-                <h2 className="text-2xl font-bold text-center">{userName}</h2>
-                {userId && (
-                  <p className="text-sm text-gray-600 mt-2">{userId}</p>
-                )}
-                <SignOutButton />
-              </div>
-
-            {/* Registration History */}
-            <div className="mb-8">
-              <h3 className="text-xl font-semibold mb-4">Registration History</h3>
-              {registrations.length === 0 ? (
-                <p className="text-gray-600">You have no registrations yet.</p>
-              ) : (
-                <ul className="space-y-3">
-                  {registrations.map((r: any) => (
-                    <li key={r.id} className="border p-3 rounded">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <div className="font-semibold">{r.programs?.title ?? 'Program'}</div>
-                          <div className="text-sm text-gray-600">{r.status} • {new Date(r.created_at).toLocaleString()}</div>
-                        </div>
-                        <div className="flex items-center">
-                          <div className="text-sm text-gray-500">{r.programs?.start_at ? new Date(r.programs.start_at).toLocaleDateString() : ''}</div>
-                          {/* cancellation disabled in UI for now */}
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-              {/* Right Side - Profile Content */}
-              <div className="flex-1">
-                {/* Membership Information */}
-                <div className="mb-8">
-                  <div className="space-y-3 mb-6">
-                    <div className="flex items-center">
-                      <span className="font-semibold w-40">Membership Type:</span>
-                      <span className="text-gray-600">{membershipType}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <span className="font-semibold w-40">Start Date:</span>
-                      <span className="text-gray-600">{startDate}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <span className="font-semibold w-40">Expire Date:</span>
-                      <span className="text-gray-600">{expireDate}</span>
-                    </div>
+    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-gray-300 to-green-600 py-8">
+      <div className="container mx-auto px-4">
+        <div className="max-w-6xl mx-auto">
+          <div className="bg-white rounded-2xl p-6 shadow-md">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+              {/* Left: Avatar + stacked Membership and Personal Info */}
+              <div className="md:col-span-1">
+                <div className="flex flex-col items-center">
+                  <UserCircle size={96} className="text-gray-400 mb-3" />
+                  <h2 className="text-lg font-semibold">{userName}</h2>
+                  <p className="text-xs text-gray-500 mb-2">{userEmail}</p>
+                  <div className="mt-2 w-full flex justify-center">
+                    <SignOutButton />
                   </div>
-                  {!hasMembership && (
-                    <Link href="/profile/membership">
-                      <button className="bg-green-500 text-white px-6 py-2 rounded-md hover:bg-green-600 transition-colors">
-                        Add Membership
-                      </button>
-                    </Link>
-                  )}
                 </div>
 
-                {/* Personal Info Section */}
-                <div>
-                  <h2 className="text-2xl font-bold mb-4">Personal Info</h2>
-                  <div className="space-y-3">
-                    <div className="flex items-center">
-                      <span className="font-semibold w-32">Name:</span>
-                      <span className="text-gray-600">{userName}</span>
+                <div className="mt-4 bg-gray-50 rounded-lg p-4">
+                  <h4 className="font-medium mb-2">Membership</h4>
+                  <div className="text-sm text-gray-700">
+                    {hasMembership ? (
+                      <>
+                        <div className="flex justify-between py-1">
+                          <span className="text-gray-600">Type</span>
+                          <span className="font-medium">{membershipType}</span>
+                        </div>
+                        <div className="flex justify-between py-1">
+                          <span className="text-gray-600">Start</span>
+                          <span className="text-gray-600">{startDate}</span>
+                        </div>
+                        <div className="flex justify-between py-1">
+                          <span className="text-gray-600">Expires</span>
+                          <span className="text-gray-600">{expireDate}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="mt-3">
+                        <Link href="/profile/membership">
+                          <button className="w-full bg-green-500 text-white px-3 py-2 rounded-md hover:bg-green-600 transition-colors">Add Membership</button>
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4 bg-gray-50 rounded-lg p-4">
+                  <h4 className="font-medium mb-2">Personal Info</h4>
+                  <div className="text-sm text-gray-700">
+                    <div className="flex justify-between py-1">
+                      <span className="text-gray-600">Name</span>
+                      <span className="font-medium">{userName}</span>
                     </div>
-                    <div className="flex items-center">
-                      <span className="font-semibold w-32">Email:</span>
+                    <div className="flex justify-between py-1">
+                      <span className="text-gray-600">Email</span>
                       <span className="text-gray-600">{userEmail}</span>
                     </div>
-                    <div className="flex items-center">
-                      <span className="font-semibold w-32">Affiliation:</span>
+                    <div className="flex justify-between py-1">
+                      <span className="text-gray-600">Affiliation</span>
                       <span className="text-gray-600">{profile?.affiliation ?? 'Not specified'}</span>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Right: Registration history (wider) */}
+              <div className="md:col-span-2">
+                <h3 className="text-lg font-semibold mb-3">Registration History</h3>
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  {registrations.length === 0 ? (
+                    <p className="text-gray-600">You have no registrations yet.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {registrations.map((r: any) => (
+                        <li key={r.id} className="flex justify-between items-start p-3 bg-white rounded-md shadow-sm">
+                          <div>
+                            <div className="font-medium">{r.programs?.title ?? 'Program'}</div>
+                            <div className="text-xs text-gray-500">{r.status} • {new Date(r.created_at).toLocaleString()}</div>
+                          </div>
+                          <div className="text-sm text-gray-500">{r.programs?.start_at ? new Date(r.programs.start_at).toLocaleDateString() : ''}</div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               </div>
             </div>

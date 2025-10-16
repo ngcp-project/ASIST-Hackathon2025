@@ -37,6 +37,9 @@ export default function AuthCallback() {
               .eq('id', user.id);
             if (!error) localStorage.removeItem('pending_profile');
           }
+
+          // Ensure a profile row exists (fills missing fields from auth if needed)
+          try { await supabase.rpc('ensure_user_profile'); } catch {}
         }
       } catch {}
 
