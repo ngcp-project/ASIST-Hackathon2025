@@ -80,7 +80,6 @@ export default function ProgramDetailPage() {
   })}
 </p>
 
-
         <button
           onClick={handleRegister}
           className={`w-full py-2 rounded-lg font-semibold transition ${
@@ -91,6 +90,7 @@ export default function ProgramDetailPage() {
         >
           {isRegistered ? "Unregister" : "Register"}
         </button>
+        
       </div>
     </div>
   );

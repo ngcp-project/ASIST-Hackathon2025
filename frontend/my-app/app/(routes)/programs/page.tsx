@@ -7,6 +7,7 @@ export default async function ProgramsPage() {
   const supabase = createClient();
 
   const { data: programs, error } = await supabase.from("programs").select("*");
+  console.log(programs)
 
   if (error) {
     console.error("Error fetching programs:", error);
