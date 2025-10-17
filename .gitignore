@@ -1,0 +1,28 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Node / Next.js
+node_modules/
+.next/
+.next-cache/
+out/
+
+# Env
+.env*
+!.env.example
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Docker
+**/.dockerignore
+
+# Ignore all SQL files across the repo
+*.sql
+
+# Ignore docs folder entirely
+/docs/

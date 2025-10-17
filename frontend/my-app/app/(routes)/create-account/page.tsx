@@ -69,31 +69,46 @@ export default function CreateAccount() {
 
       // 2) If email confirmation is ON, there is no session yet.
       if (!signUpData.session) {
+        // compute role from affiliation for server-side RLS checks
+        const roleForAff = formData.affiliation === 'Student' ? 'STUDENT' : (formData.affiliation === 'Faculty and Staff' ? 'STAFF' : 'MEMBER')
         // stash profile fields to apply on first login
         localStorage.setItem('pending_profile', JSON.stringify({
           first_name: formData.firstName,
           last_name: formData.lastName,
-          affiliation: formData.affiliation
+          affiliation: formData.affiliation,
+          role: roleForAff
         }))
         alert('Check your email to confirm your account. Then sign in.')
         router.push('/sign-in')
         return
       }
 
-      // 3) If we already have a session, update profile now.
+      // 3) If we already have a session, ensure profile now.
       const user = signUpData.user!
-      const { error: updateErr } = await supabase
-        .from('users')
-        .update({
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          affiliation: formData.affiliation
-        })
-        .eq('id', user.id)
-      if (updateErr) {
-        setServerError(updateErr.message)
-        return
-      }
+      // compute role from affiliation for server-side RLS checks
+      const roleForAff = formData.affiliation === 'Student' ? 'STUDENT' : (formData.affiliation === 'Faculty and Staff' ? 'STAFF' : 'MEMBER')
+
+      // Ensure row exists and fill fields if missing
+      await supabase.rpc('ensure_user_profile', {
+        p_email: user.email,
+        p_first: formData.firstName,
+        p_last: formData.lastName,
+        p_affiliation: formData.affiliation,
+        p_role: roleForAff,
+      });
+
+      // As a fallback, also attempt an explicit update (harmless if already set)
+      try {
+        await supabase
+          .from('users')
+          .update({
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            affiliation: formData.affiliation,
+            role: roleForAff
+          })
+          .eq('id', user.id)
+      } catch {}
 
       router.push('/profile')
     } catch (err: any) {

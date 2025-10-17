@@ -23,3 +23,13 @@ export const serverClient = async () => {
     }
   )
 }
+
+// Helper: check whether the current user is staff/admin.
+export const isStaff = async (): Promise<boolean> => {
+  const supabase = await serverClient();
+  const { data: user } = await supabase.auth.getUser();
+  if (!user?.user) return false;
+  const { data, error } = await supabase.rpc('auth_is_staff');
+  if (error) return false;
+  return Boolean(data);
+}

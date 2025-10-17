@@ -1,145 +1,375 @@
 // app/programs/[id]/page.tsx
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { updateProgramAction } from "./actions";
+import { toDatetimeLocalValue, fromDatetimeLocalValue } from "@/lib/datetime";
 
 export default function ProgramDetailPage() {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const supabase = createClient();
 
   const [program, setProgram] = useState<any>(null);
   const [isRegistered, setIsRegistered] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [regCount, setRegCount] = useState<number>(0);
+  const [isFull, setIsFull] = useState<boolean>(false);
+  const [hasParticipation, setHasParticipation] = useState<boolean>(true);
+  const [isStaff, setIsStaff] = useState<boolean>(false);
+  const [editing, setEditing] = useState<boolean>(false);
+  const [saving, setSaving] = useState<boolean>(false);
+  const [form, setForm] = useState<any | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setMessage(null);
-    // fetch program
-    const { data: prog, error: pErr } = await supabase
-      .from("programs")
-      .select("*")
-      .eq("id", String(id))
-      .single();
-    if (pErr) {
-      console.error(pErr);
-      setProgram(null);
-    } else {
-      setProgram(prog);
-    }
-    // check if current user has a non-canceled registration
-    const { data: userRes } = await supabase.auth.getUser();
-    if (userRes.user) {
-      const { data: regs, error: rErr } = await supabase
-        .from('registrations')
-        .select('id,status')
-        .eq('program_id', String(id))
-        .eq('user_id', userRes.user.id)
-        .in('status', ['REGISTERED','WAITLISTED','CHECKED_IN'])
-        .limit(1);
-      if (!rErr && regs && regs.length > 0) setIsRegistered(true);
-      else setIsRegistered(false);
-    } else {
-      setIsRegistered(false);
-    }
+  // Fetch program data from Supabase
+  useEffect(() => {
+    const fetchProgram = async () => {
+      const { data, error } = await supabase
+        .from("programs")
+        .select("*")
+        .eq("id", id)
+        .single();
 
-    //check if current user is an admin
-    if(userRes.user){
-      const {data: role, error} = await supabase
-        .from('users')
-        .select('affiliation')
-        .eq('id', userRes.user.id)
       if (error) {
-        console.error("Error fetching user's role:", error);
+        console.error(error);
+        setError("Failed to load program.");
+      } else {
+        setProgram(data);
       }
 
-      if (role && (role[0]?.affiliation == 'Faculty and Staff')) {
-        setIsAdmin(true)
-      }
-    }
+      setLoading(false);
+    };
 
-    setLoading(false);
+    fetchProgram();
   }, [id, supabase]);
 
+  // Fetch participation counts via RPC (security definer)
   useEffect(() => {
-    load();
-  }, [load]);
-
-  const handleClick = async () => {
-    if (!program) return;
-    if (isRegistered) {
-      // Unregister via our API so server can revalidate pages
+    const fetchParticipation = async () => {
+      if (!id) return;
       try {
-        setBusy(true);
-        setMessage(null);
+  // Explicitly pass null for p_program_ids; some setups require a params object
+  const { data: part, error } = await supabase.rpc("program_participation", { p_program_ids: null });
+        if (error) throw error;
+        const row = Array.isArray(part)
+          ? (part as any[]).find((r) => r.program_id === id)
+          : undefined;
+        const count = row?.registered ?? 0;
+        setRegCount(count);
+        setHasParticipation(true);
+      } catch (e: any) {
+        // Graceful fallback when RPC is missing or schema cache is stale: direct count query
+        try {
+          const { count, error: cErr } = await supabase
+            .from('registrations')
+            .select('id', { count: 'exact', head: true })
+            .eq('program_id', id)
+            .in('status', ['REGISTERED','CHECKED_IN']);
+          if (cErr || typeof count !== 'number') {
+            setHasParticipation(false);
+            setRegCount(0);
+          } else {
+            setHasParticipation(true);
+            setRegCount(count);
+          }
+        } catch {
+          setHasParticipation(false);
+          setRegCount(0);
+        }
+      }
+    };
+    fetchParticipation();
+  }, [id, supabase]);
+
+  // Check if current user is registered for this program
+  useEffect(() => {
+    const checkRegistered = async () => {
+      try {
+        const { data: userRes } = await supabase.auth.getUser();
+        const user = userRes?.user;
+        if (!user) {
+          setIsRegistered(false);
+          return;
+        }
+        const { data, error } = await supabase
+          .from('registrations')
+          .select('status')
+          .eq('program_id', id)
+          .eq('user_id', user.id)
+          .not('status','eq','CANCELED')
+          .limit(1);
+        if (!error && data && data.length > 0) setIsRegistered(true);
+        else setIsRegistered(false);
+      } catch (e) {
+        // Non-fatal
+      }
+    };
+    checkRegistered();
+  }, [id, supabase, editing]);
+
+  // Compute fullness whenever program or regCount changes
+  useEffect(() => {
+    if (!program) return;
+    const cap = program.capacity ?? 0;
+    const full = hasParticipation && cap > 0 ? regCount >= cap : false;
+    setIsFull(full);
+    setForm(program);
+  }, [program, regCount, hasParticipation]);
+
+  // Check if current user is staff/admin
+  useEffect(() => {
+    const fetchIsStaff = async () => {
+      try {
+        const { data, error } = await supabase.rpc('auth_is_staff');
+        if (error) return;
+        setIsStaff(Boolean(data));
+      } catch {}
+    };
+    fetchIsStaff();
+  }, [supabase]);
+
+  const refreshCounts = async () => {
+    try {
+      const { data: part, error } = await supabase.rpc('program_participation', { p_program_ids: null });
+      if (error) throw error;
+      const row = Array.isArray(part) ? (part as any[]).find((r) => r.program_id === id) : undefined;
+      setHasParticipation(true);
+      setRegCount(row?.registered ?? 0);
+    } catch {
+      // Fallback to direct count
+      try {
+        const { count, error: cErr } = await supabase
+          .from('registrations')
+          .select('id', { count: 'exact', head: true })
+          .eq('program_id', id)
+          .in('status', ['REGISTERED','CHECKED_IN']);
+        if (cErr || typeof count !== 'number') {
+          setHasParticipation(false);
+        } else {
+          setHasParticipation(true);
+          setRegCount(count);
+        }
+      } catch {
+        setHasParticipation(false);
+      }
+    }
+  };
+
+  const handleRegister = async () => {
+    if (isRegistered) {
+      // Unregister via API
+      try {
         const res = await fetch('/api/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ programId: String(id), action: 'cancel' })
+          body: JSON.stringify({ programId: id, action: 'cancel' }),
         });
-        const data = await res.json();
-        if (!data.success) {
-          setMessage(data.message || 'Failed to cancel');
-        } else {
-          // Optimistically flip state; load will confirm
-          setIsRegistered(false);
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          setError(json.message || 'Failed to cancel');
+          return;
         }
-        await load();
-      } finally {
-        setBusy(false);
+        setIsRegistered(false);
+        refreshCounts();
+      } catch (e:any) {
+        setError(e?.message ?? 'Failed to cancel');
       }
     } else {
-      // navigate to waiver
+      // Go to waiver first
       router.push(`/programs/${id}/waiver`);
     }
   };
 
+  // After waiver, navigation remounts this page; effects above will refresh state.
+
   if (loading) return <p className="text-center mt-10">Loading...</p>;
   if (!program) return <p className="text-center mt-10">Program not found</p>;
+  
+  const capLabel = hasParticipation
+    ? (program?.capacity ? `${regCount}/${program.capacity}` : `${regCount}`)
+    : '—';
 
   return (
     <div className="flex flex-col items-center mt-6 min-h-screen p-6">
       <div className="max-w-md w-full bg-white shadow-lg rounded-2xl p-6">
-        <h1 className="text-2xl font-bold mb-3 text-center">{program.title}</h1>
-        <p className="text-gray-700 mb-3">{program.description}</p>
-        <p className="text-sm text-gray-500 mb-1">
-          <strong>Location:</strong> {program.location}
-        </p>
-
-        <p className="text-sm text-gray-500 mb-4">
-          <strong>Time:</strong>{" "}
-          {new Date(program.start_at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
-          {" "}-{" "}
-          {new Date(program.end_at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
-        </p>
-
-        <button
-          onClick={handleClick}
-          disabled={busy}
-          className={`w-full py-2 rounded-lg font-semibold transition ${
-            isRegistered
-              ? "bg-red-500 text-white hover:bg-red-600 disabled:bg-red-300"
-              : "bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300"
-          }`}
-        >
-          {isRegistered ? (busy ? 'Unregistering…' : 'Unregister') : 'Register'}
-        </button>
-        {message && <p className="mt-3 text-sm text-red-600">{message}</p>}
-
-        {isAdmin && (
+        <div className="mb-3">
           <button
-            onClick={() => router.push(`/programs/${id}/check-in`)}
-            className={`mt-4 w-full py-2 rounded-lg font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300`}
+            onClick={() => router.push('/programs')}
+            className="text-blue-600 hover:underline text-sm"
+          >
+            ← Back to Programs
+          </button>
+        </div>
+        {!editing && (
+          <>
+            <h1 className="text-2xl font-bold mb-3 text-center">{program.title}</h1>
+            <p className="text-gray-700 mb-3">{program.description}</p>
+            <p className="text-sm text-gray-500 mb-1">
+              <strong>Location:</strong> {program.location}
+            </p>
+
+            <p className="text-sm text-gray-500 mb-4">
+              <strong>Time:</strong>{" "}
+              {new Date(program.start_at).toLocaleString("en-US", {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })}{" "}
+              -{" "}
+              {new Date(program.end_at).toLocaleString("en-US", {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })}
+            </p>
+          </>
+        )}
+
+        {editing && isStaff && form && (
+          <div className="space-y-3 mb-4">
+            <input className="w-full border rounded px-3 py-2" value={form.title ?? ''} onChange={e=>setForm((f:any)=>({...f, title:e.target.value}))} placeholder="Title" />
+            <textarea className="w-full border rounded px-3 py-2" value={form.description ?? ''} onChange={e=>setForm((f:any)=>({...f, description:e.target.value}))} placeholder="Description" />
+            <input className="w-full border rounded px-3 py-2" value={form.location ?? ''} onChange={e=>setForm((f:any)=>({...f, location:e.target.value}))} placeholder="Location" />
+            <div>
+              <label className="block text-sm font-medium mb-1">Visibility</label>
+              <select
+                className="w-full border rounded px-3 py-2"
+                value={form.visibility ?? 'PUBLIC'}
+                onChange={e=>setForm((f:any)=>({...f, visibility:e.target.value}))}
               >
-            Check In Page
+                <option value="PUBLIC">PUBLIC</option>
+                <option value="MEMBERS_ONLY">MEMBERS_ONLY</option>
+                <option value="STUDENTS_ONLY">STUDENTS_ONLY</option>
+                <option value="INTERNAL">INTERNAL</option>
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <input type="number" min={0} className="w-full border rounded px-3 py-2" value={form.capacity ?? 0} onChange={e=>setForm((f:any)=>({...f, capacity:Number(e.target.value)}))} placeholder="Capacity" />
+            </div>
+            <input
+              type="datetime-local"
+              className="w-full border rounded px-3 py-2"
+              value={toDatetimeLocalValue(form.start_at)}
+              onChange={e=>setForm((f:any)=>({...f, start_at: fromDatetimeLocalValue(e.target.value)}))}
+            />
+            <input
+              type="datetime-local"
+              className="w-full border rounded px-3 py-2"
+              value={toDatetimeLocalValue(form.end_at)}
+              onChange={e=>setForm((f:any)=>({...f, end_at: fromDatetimeLocalValue(e.target.value)}))}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm font-medium mb-1">Publish at</label>
+                <input
+                  type="datetime-local"
+                  className="w-full border rounded px-3 py-2"
+                  value={toDatetimeLocalValue(form.publish_at)}
+                  onChange={e=>setForm((f:any)=>({...f, publish_at: fromDatetimeLocalValue(e.target.value)}))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Unpublish at</label>
+                <input
+                  type="datetime-local"
+                  className="w-full border rounded px-3 py-2"
+                  value={toDatetimeLocalValue(form.unpublish_at)}
+                  onChange={e=>setForm((f:any)=>({...f, unpublish_at: fromDatetimeLocalValue(e.target.value)}))}
+                />
+              </div>
+            </div>
+            {/* waiver_url removed from schema */}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between mb-4">
+          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${isFull ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}>
+            {isFull ? "Full" : "Open"}
+          </span>
+          <span className="text-xs text-gray-600">Registered: {capLabel}</span>
+        </div>
+
+        {!editing && (
+          <button
+            onClick={handleRegister}
+            className={`w-full py-2 rounded-lg font-semibold transition ${
+              isRegistered
+                ? "bg-red-500 text-white hover:bg-red-600"
+                : isFull
+                  ? "bg-teal-600 text-white hover:bg-teal-700"
+                  : "bg-blue-600 text-white hover:bg-blue-700"
+            }`}
+          >
+            {isRegistered ? "Unregister" : isFull ? "Join waitlist" : "Register"}
           </button>
         )}
-      
+
+        {isStaff && !editing && (
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              onClick={() => router.push(`/programs/${id}/check-in`)}
+              className="w-full py-2 rounded-lg font-semibold bg-blue-600 text-white hover:bg-blue-700 transition"
+            >
+              Check In Page
+            </button>
+            <button
+              onClick={() => setEditing(true)}
+              className="w-full py-2 rounded-lg font-semibold bg-teal-600 text-white hover:bg-teal-700 transition"
+            >
+              Edit Program
+            </button>
+          </div>
+        )}
+
+        {isStaff && editing && (
+          <form
+            action={async (fd: FormData) => {
+              setSaving(true);
+              setError(null);
+              fd.set("id", String(id));
+              fd.set("title", form?.title ?? "");
+              fd.set("description", form?.description ?? "");
+              fd.set("location", form?.location ?? "");
+              fd.set("visibility", form?.visibility ?? "PUBLIC");
+              fd.set("capacity", String(form?.capacity ?? 0));
+              if (form?.start_at) fd.set("start_at", form.start_at);
+              if (form?.end_at) fd.set("end_at", form.end_at);
+              if (form?.publish_at) fd.set("publish_at", form.publish_at);
+              if (form?.unpublish_at) fd.set("unpublish_at", form.unpublish_at);
+
+              const res = await updateProgramAction(fd);
+              if (!res.ok) {
+                setError(res.error ?? 'Failed to save program');
+                setSaving(false);
+                return;
+              }
+              setSaving(false);
+              setEditing(false);
+            }}
+            className="mt-3 grid grid-cols-2 gap-2"
+          >
+            <button
+              type="submit"
+              disabled={saving}
+              className={`w-full py-2 rounded-lg font-semibold ${saving ? 'bg-green-300' : 'bg-green-600 hover:bg-green-700'} text-white transition`}
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setEditing(false); setForm(program); }}
+              disabled={saving}
+              className="w-full py-2 rounded-lg font-semibold bg-gray-200 text-gray-800 hover:bg-gray-300 transition"
+            >
+              Cancel
+            </button>
+          </form>
+        )}
+
+        {error && (
+          <p className="mt-3 text-sm text-red-600">{error}</p>
+        )}
       </div>
     </div>
   );
