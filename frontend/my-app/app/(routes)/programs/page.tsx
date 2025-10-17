@@ -31,7 +31,6 @@ async function createProgram(formData: FormData) {
     // If not explicitly provided, default unpublish_at to end_at
     unpublish_at: end_at || null,
     visibility: (visibility as any) ?? 'PUBLIC',
-    delivery_mode: 'IN_PERSON',
   });
   revalidatePath('/programs');
 }
@@ -49,21 +48,34 @@ export default async function Programs() {
     .order('start_at', { ascending: true });
 
   const list = (programs as any) ?? [];
-  // Participation counts: only compute for admins (RLS allows staff to read registrations)
+  // Participation counts for everyone via security-definer RPC; fallback to staff-only direct count if RPC unavailable
   const ids = list.map((p: any) => p.id);
   let countsRegistered: Record<string, number> = {};
   let countsWaitlisted: Record<string, number> = {};
-  if (admin && ids.length > 0) {
-    const { data: regs } = await supabase
-      .from('registrations')
-      .select('program_id,status')
-      .in('program_id', ids)
-      .in('status', ['REGISTERED','CHECKED_IN','WAITLISTED']);
-    for (const r of (regs as any[] ?? [])) {
-      if (r.status === 'WAITLISTED') {
-        countsWaitlisted[r.program_id] = (countsWaitlisted[r.program_id] ?? 0) + 1;
-      } else {
-        countsRegistered[r.program_id] = (countsRegistered[r.program_id] ?? 0) + 1;
+  if (ids.length > 0) {
+    let usedRpc = false;
+    try {
+      const { data, error } = await supabase.rpc('program_participation', { p_program_ids: ids });
+      if (!error && Array.isArray(data)) {
+        for (const row of data as any[]) {
+          countsRegistered[row.program_id] = Number(row.registered ?? 0);
+          countsWaitlisted[row.program_id] = Number(row.waitlisted ?? 0);
+        }
+        usedRpc = true;
+      }
+    } catch {}
+    if (!usedRpc && admin) {
+      const { data: regs } = await supabase
+        .from('registrations')
+        .select('program_id,status')
+        .in('program_id', ids)
+        .in('status', ['REGISTERED','CHECKED_IN','WAITLISTED']);
+      for (const r of (regs as any[] ?? [])) {
+        if (r.status === 'WAITLISTED') {
+          countsWaitlisted[r.program_id] = (countsWaitlisted[r.program_id] ?? 0) + 1;
+        } else {
+          countsRegistered[r.program_id] = (countsRegistered[r.program_id] ?? 0) + 1;
+        }
       }
     }
   }
@@ -157,12 +169,14 @@ export default async function Programs() {
                               {' '}–{' '}
                               {end.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
                             </p>
-                            {admin && (
+                            {(typeof countsRegistered[program.id] === 'number' || typeof countsWaitlisted[program.id] === 'number') && (
                               <div className="mt-1 space-y-0.5">
-                                <p>
-                                  <strong>Registered:</strong>{' '}
-                                  {(countsRegistered[program.id] ?? 0)}{typeof program.capacity === 'number' && program.capacity > 0 ? ` / ${program.capacity}` : ''}
-                                </p>
+                                {typeof countsRegistered[program.id] === 'number' && (
+                                  <p>
+                                    <strong>Registered:</strong>{' '}
+                                    {countsRegistered[program.id]}{typeof program.capacity === 'number' && program.capacity > 0 ? ` / ${program.capacity}` : ''}
+                                  </p>
+                                )}
                                 {typeof countsWaitlisted[program.id] === 'number' && countsWaitlisted[program.id] > 0 && (
                                   <p className="text-teal-700">
                                     <strong>Waitlisted:</strong> {countsWaitlisted[program.id]}
