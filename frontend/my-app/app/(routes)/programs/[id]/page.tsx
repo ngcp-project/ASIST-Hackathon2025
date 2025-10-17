@@ -13,29 +13,57 @@ export default function ProgramDetailPage() {
   const [program, setProgram] = useState<any>(null);
   const [isRegistered, setIsRegistered] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  // Fetch program data from Supabase
-  useEffect(() => {
-    const fetchProgram = async () => {
-      const { data, error } = await supabase
-        .from("programs")
-        .select("*")
-        .eq("id", id)
-        .single();
+  const load = useCallback(async () => {
+    setLoading(true);
+    setMessage(null);
+    // fetch program
+    const { data: prog, error: pErr } = await supabase
+      .from("programs")
+      .select("*")
+      .eq("id", String(id))
+      .single();
+    if (pErr) {
+      console.error(pErr);
+      setProgram(null);
+    } else {
+      setProgram(prog);
+    }
+    // check if current user has a non-canceled registration
+    const { data: userRes } = await supabase.auth.getUser();
+    if (userRes.user) {
+      const { data: regs, error: rErr } = await supabase
+        .from('registrations')
+        .select('id,status')
+        .eq('program_id', String(id))
+        .eq('user_id', userRes.user.id)
+        .in('status', ['REGISTERED','WAITLISTED','CHECKED_IN'])
+        .limit(1);
+      if (!rErr && regs && regs.length > 0) setIsRegistered(true);
+      else setIsRegistered(false);
+    } else {
+      setIsRegistered(false);
+    }
 
-      if (error) console.error(error);
-      else {
-        setProgram(data);
+    //check if current user is an admin
+    if(userRes.user){
+      const {data: role, error} = await supabase
+        .from('users')
+        .select('affiliation')
+        .eq('id', userRes.user.id)
+      if (error) {
+        console.error("Error fetching user's role:", error);
       }
 
-      // Check local storage for registration state
-      const stored = localStorage.getItem(`registered_${id}`);
-      if (stored === "true") setIsRegistered(true);
+      if (role && (role[0]?.affiliation == 'Faculty and Staff')) {
+        setIsAdmin(true)
+      }
+    }
 
-      setLoading(false);
-    };
-
-    fetchProgram();
+    setLoading(false);
   }, [id, supabase]);
 
   const handleRegister = () => {
@@ -90,7 +118,17 @@ export default function ProgramDetailPage() {
         >
           {isRegistered ? "Unregister" : "Register"}
         </button>
-        
+        {message && <p className="mt-3 text-sm text-red-600">{message}</p>}
+
+        {isAdmin && (
+          <button
+            onClick={() => router.push(`/programs/${id}/check-in`)}
+            className={`mt-4 w-full py-2 rounded-lg font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300`}
+              >
+            Check In Page
+          </button>
+        )}
+      
       </div>
     </div>
   );
