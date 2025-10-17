@@ -1,7 +1,7 @@
 // app/programs/[id]/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -66,22 +66,38 @@ export default function ProgramDetailPage() {
     setLoading(false);
   }, [id, supabase]);
 
-  const handleRegister = () => {
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const handleClick = async () => {
+    if (!program) return;
     if (isRegistered) {
-      // Unregister
-      localStorage.removeItem(`registered_${id}`);
-      setIsRegistered(false);
+      // Unregister via our API so server can revalidate pages
+      try {
+        setBusy(true);
+        setMessage(null);
+        const res = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ programId: String(id), action: 'cancel' })
+        });
+        const data = await res.json();
+        if (!data.success) {
+          setMessage(data.message || 'Failed to cancel');
+        } else {
+          // Optimistically flip state; load will confirm
+          setIsRegistered(false);
+        }
+        await load();
+      } finally {
+        setBusy(false);
+      }
     } else {
-      // Go to waiver first
+      // navigate to waiver
       router.push(`/programs/${id}/waiver`);
     }
   };
-
-  // After waiver, the page can re-check localStorage (see below)
-  useEffect(() => {
-    const stored = localStorage.getItem(`registered_${id}`);
-    if (stored === "true") setIsRegistered(true);
-  }, [id]);
 
   if (loading) return <p className="text-center mt-10">Loading...</p>;
   if (!program) return <p className="text-center mt-10">Program not found</p>;
@@ -96,27 +112,22 @@ export default function ProgramDetailPage() {
         </p>
 
         <p className="text-sm text-gray-500 mb-4">
-  <strong>Time:</strong>{" "}
-  {new Date(program.start_at).toLocaleString("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  })}{" "}
-  -{" "}
-  {new Date(program.end_at).toLocaleString("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  })}
-</p>
+          <strong>Time:</strong>{" "}
+          {new Date(program.start_at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
+          {" "}-{" "}
+          {new Date(program.end_at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
+        </p>
 
         <button
-          onClick={handleRegister}
+          onClick={handleClick}
+          disabled={busy}
           className={`w-full py-2 rounded-lg font-semibold transition ${
             isRegistered
-              ? "bg-red-500 text-white hover:bg-red-600"
-              : "bg-blue-600 text-white hover:bg-blue-700"
+              ? "bg-red-500 text-white hover:bg-red-600 disabled:bg-red-300"
+              : "bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300"
           }`}
         >
-          {isRegistered ? "Unregister" : "Register"}
+          {isRegistered ? (busy ? 'Unregistering…' : 'Unregister') : 'Register'}
         </button>
         {message && <p className="mt-3 text-sm text-red-600">{message}</p>}
 
