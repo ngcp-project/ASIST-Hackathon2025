@@ -14,8 +14,10 @@ async function createProgram(formData: FormData) {
   const description = String(formData.get('description') || '').trim();
   const location = String(formData.get('location') || '').trim();
   const capacity = Number(formData.get('capacity') || 0);
-  const start_at = String(formData.get('start_at') || '');
-  const end_at = String(formData.get('end_at') || '');
+  const start_at_raw = String(formData.get('start_at') || '');
+  const end_at_raw = String(formData.get('end_at') || '');
+  const start_at = start_at_raw ? new Date(start_at_raw).toISOString() : '';
+  const end_at = end_at_raw ? new Date(end_at_raw).toISOString() : '';
   const visibility = String(formData.get('visibility') || 'PUBLIC');
   if (!title || !start_at || !end_at) return;
   await supabase.from('programs').insert({
@@ -162,7 +164,7 @@ export default async function Programs() {
                                   {(countsRegistered[program.id] ?? 0)}{typeof program.capacity === 'number' && program.capacity > 0 ? ` / ${program.capacity}` : ''}
                                 </p>
                                 {typeof countsWaitlisted[program.id] === 'number' && countsWaitlisted[program.id] > 0 && (
-                                  <p className="text-amber-700">
+                                  <p className="text-teal-700">
                                     <strong>Waitlisted:</strong> {countsWaitlisted[program.id]}
                                   </p>
                                 )}

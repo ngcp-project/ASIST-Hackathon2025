@@ -77,7 +77,7 @@ export default function ProgramRegisterClient({ program }: { program: any }) {
           : new Date(program.end_at).toISOString()}
       </p>
       {isWaitlisted && (
-        <div className="mb-3 text-sm text-amber-700">
+        <div className="mb-3 text-sm text-teal-700">
           You are waitlisted{typeof waitlistPos === 'number' ? ` (position ${waitlistPos})` : ''}. You'll be auto-promoted if a spot opens.
         </div>
       )}
@@ -87,7 +87,7 @@ export default function ProgramRegisterClient({ program }: { program: any }) {
         className={`w-full py-2 rounded-lg font-semibold transition ${
           isRegistered
             ? "bg-red-500 text-white hover:bg-red-600 disabled:bg-red-300"
-            : "bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300"
+            : (program?._isFull ? "bg-teal-600 text-white hover:bg-teal-700" : "bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300")
         }`}
       >
         {isRegistered

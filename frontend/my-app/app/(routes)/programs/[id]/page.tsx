@@ -1,172 +1,374 @@
-import { isStaff, serverClient } from "@/lib/supabase/server";
-import Link from "next/link";
-import ProgramRegisterClient from '@/components/ProgramRegisterClient';
-import { revalidatePath } from "next/cache";
-import { redirect } from 'next/navigation';
+// app/programs/[id]/page.tsx
+"use client";
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { updateProgramAction } from "./actions";
+import { toDatetimeLocalValue, fromDatetimeLocalValue } from "@/lib/datetime";
 
-async function saveProgram(id: string, formData: FormData) {
-  'use server';
-  const supabase = await serverClient();
-  if (!(await isStaff())) return;
-  const title = String(formData.get('title') || '').trim();
-  const description = String(formData.get('description') || '').trim();
-  const location = String(formData.get('location') || '').trim();
-  const capacity = Number(formData.get('capacity') || 0);
-  const start_at = String(formData.get('start_at') || '');
-  const end_at = String(formData.get('end_at') || '');
-  const visibility = String(formData.get('visibility') || '').trim() || null;
-  const delivery_mode = String(formData.get('delivery_mode') || '').trim() || null;
-  const status = String(formData.get('status') || '').trim() || null;
-  const publish_at = String(formData.get('publish_at') || '');
-  const unpublish_at = String(formData.get('unpublish_at') || '');
-  const waiver_text = String(formData.get('waiver_text') || '').trim();
-  // If unpublish_at not provided, default to end_at so the program disappears at its end time
-  const computedUnpublishAt = unpublish_at || (end_at || '');
-  await supabase
-    .from('programs')
-    .update({
-      title: title || null,
-      description: description || null,
-      location: location || null,
-      capacity: isNaN(capacity) ? 0 : capacity,
-      start_at: start_at || null,
-      end_at: end_at || null,
-      visibility: visibility as any,
-      delivery_mode: delivery_mode as any,
-      status: status as any,
-      publish_at: publish_at || null,
-      unpublish_at: computedUnpublishAt || null,
-      waiver_text: waiver_text || null,
-    })
-    .eq('id', id);
-  revalidatePath(`/programs/${id}`);
-  revalidatePath('/programs');
-  // Ensure the form reflects updates immediately after POST
-  redirect(`/programs/${id}`);
-}
+export default function ProgramDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  const supabase = createClient();
 
-export default async function ProgramDetailPage({ params }: { params: { id: string } }) {
-  const supabase = await serverClient();
-  const admin = await isStaff();
-  const { data: program } = await supabase
-    .from('programs')
-    .select('*')
-    .eq('id', params.id)
-    .single();
+  const [program, setProgram] = useState<any>(null);
+  const [isRegistered, setIsRegistered] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [regCount, setRegCount] = useState<number>(0);
+  const [isFull, setIsFull] = useState<boolean>(false);
+  const [hasParticipation, setHasParticipation] = useState<boolean>(true);
+  const [isStaff, setIsStaff] = useState<boolean>(false);
+  const [editing, setEditing] = useState<boolean>(false);
+  const [saving, setSaving] = useState<boolean>(false);
+  const [form, setForm] = useState<any | null>(null);
 
+  // Fetch program data from Supabase
+  useEffect(() => {
+    const fetchProgram = async () => {
+      const { data, error } = await supabase
+        .from("programs")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (error) {
+        console.error(error);
+        setError("Failed to load program.");
+      } else {
+        setProgram(data);
+      }
+
+      setLoading(false);
+    };
+
+    fetchProgram();
+  }, [id, supabase]);
+
+  // Fetch participation counts via RPC (security definer)
+  useEffect(() => {
+    const fetchParticipation = async () => {
+      if (!id) return;
+      try {
+  // Explicitly pass null for p_program_ids; some setups require a params object
+  const { data: part, error } = await supabase.rpc("program_participation", { p_program_ids: null });
+        if (error) throw error;
+        const row = Array.isArray(part)
+          ? (part as any[]).find((r) => r.program_id === id)
+          : undefined;
+        const count = row?.registered ?? 0;
+        setRegCount(count);
+        setHasParticipation(true);
+      } catch (e: any) {
+        // Graceful fallback when RPC is missing or schema cache is stale: direct count query
+        try {
+          const { count, error: cErr } = await supabase
+            .from('registrations')
+            .select('id', { count: 'exact', head: true })
+            .eq('program_id', id)
+            .in('status', ['REGISTERED','CHECKED_IN']);
+          if (cErr || typeof count !== 'number') {
+            setHasParticipation(false);
+            setRegCount(0);
+          } else {
+            setHasParticipation(true);
+            setRegCount(count);
+          }
+        } catch {
+          setHasParticipation(false);
+          setRegCount(0);
+        }
+      }
+    };
+    fetchParticipation();
+  }, [id, supabase]);
+
+  // Check if current user is registered for this program
+  useEffect(() => {
+    const checkRegistered = async () => {
+      try {
+        const { data: userRes } = await supabase.auth.getUser();
+        const user = userRes?.user;
+        if (!user) {
+          setIsRegistered(false);
+          return;
+        }
+        const { data, error } = await supabase
+          .from('registrations')
+          .select('status')
+          .eq('program_id', id)
+          .eq('user_id', user.id)
+          .not('status','eq','CANCELED')
+          .limit(1);
+        if (!error && data && data.length > 0) setIsRegistered(true);
+        else setIsRegistered(false);
+      } catch (e) {
+        // Non-fatal
+      }
+    };
+    checkRegistered();
+  }, [id, supabase, editing]);
+
+  // Compute fullness whenever program or regCount changes
+  useEffect(() => {
+    if (!program) return;
+    const cap = program.capacity ?? 0;
+    const full = hasParticipation && cap > 0 ? regCount >= cap : false;
+    setIsFull(full);
+    setForm(program);
+  }, [program, regCount, hasParticipation]);
+
+  // Check if current user is staff/admin
+  useEffect(() => {
+    const fetchIsStaff = async () => {
+      try {
+        const { data, error } = await supabase.rpc('auth_is_staff');
+        if (error) return;
+        setIsStaff(Boolean(data));
+      } catch {}
+    };
+    fetchIsStaff();
+  }, [supabase]);
+
+  const refreshCounts = async () => {
+    try {
+      const { data: part, error } = await supabase.rpc('program_participation', { p_program_ids: null });
+      if (error) throw error;
+      const row = Array.isArray(part) ? (part as any[]).find((r) => r.program_id === id) : undefined;
+      setHasParticipation(true);
+      setRegCount(row?.registered ?? 0);
+    } catch {
+      // Fallback to direct count
+      try {
+        const { count, error: cErr } = await supabase
+          .from('registrations')
+          .select('id', { count: 'exact', head: true })
+          .eq('program_id', id)
+          .in('status', ['REGISTERED','CHECKED_IN']);
+        if (cErr || typeof count !== 'number') {
+          setHasParticipation(false);
+        } else {
+          setHasParticipation(true);
+          setRegCount(count);
+        }
+      } catch {
+        setHasParticipation(false);
+      }
+    }
+  };
+
+  const handleRegister = async () => {
+    if (isRegistered) {
+      // Unregister via API
+      try {
+        const res = await fetch('/api/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ programId: id, action: 'cancel' }),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.success) {
+          setError(json.message || 'Failed to cancel');
+          return;
+        }
+        setIsRegistered(false);
+        refreshCounts();
+      } catch (e:any) {
+        setError(e?.message ?? 'Failed to cancel');
+      }
+    } else {
+      // Go to waiver first
+      router.push(`/programs/${id}/waiver`);
+    }
+  };
+
+  // After waiver, navigation remounts this page; effects above will refresh state.
+
+  if (loading) return <p className="text-center mt-10">Loading...</p>;
   if (!program) return <p className="text-center mt-10">Program not found</p>;
-
-  // Compute participation counts via RPC (security definer)
-  const { data: part } = await supabase.rpc('program_participation', { p_program_ids: [params.id] });
-  const regCount = Array.isArray(part) && part.length > 0 ? (part[0] as any).registered ?? 0 : 0;
-  const isFull = (program.capacity ?? 0) > 0 ? regCount >= (program.capacity ?? 0) : false;
+  
+  const capLabel = hasParticipation
+    ? (program?.capacity ? `${regCount}/${program.capacity}` : `${regCount}`)
+    : '—';
 
   return (
     <div className="flex flex-col items-center mt-6 min-h-screen p-6">
-      <div className="max-w-xl w-full bg-white shadow-lg rounded-2xl p-6">
+      <div className="max-w-md w-full bg-white shadow-lg rounded-2xl p-6">
+        <div className="mb-3">
+          <button
+            onClick={() => router.push('/programs')}
+            className="text-blue-600 hover:underline text-sm"
+          >
+            ← Back to Programs
+          </button>
+        </div>
+        {!editing && (
+          <>
+            <h1 className="text-2xl font-bold mb-3 text-center">{program.title}</h1>
+            <p className="text-gray-700 mb-3">{program.description}</p>
+            <p className="text-sm text-gray-500 mb-1">
+              <strong>Location:</strong> {program.location}
+            </p>
+
+            <p className="text-sm text-gray-500 mb-4">
+              <strong>Time:</strong>{" "}
+              {new Date(program.start_at).toLocaleString("en-US", {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })}{" "}
+              -{" "}
+              {new Date(program.end_at).toLocaleString("en-US", {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })}
+            </p>
+          </>
+        )}
+
+        {editing && isStaff && form && (
+          <div className="space-y-3 mb-4">
+            <input className="w-full border rounded px-3 py-2" value={form.title ?? ''} onChange={e=>setForm((f:any)=>({...f, title:e.target.value}))} placeholder="Title" />
+            <textarea className="w-full border rounded px-3 py-2" value={form.description ?? ''} onChange={e=>setForm((f:any)=>({...f, description:e.target.value}))} placeholder="Description" />
+            <input className="w-full border rounded px-3 py-2" value={form.location ?? ''} onChange={e=>setForm((f:any)=>({...f, location:e.target.value}))} placeholder="Location" />
+            <div>
+              <label className="block text-sm font-medium mb-1">Visibility</label>
+              <select
+                className="w-full border rounded px-3 py-2"
+                value={form.visibility ?? 'PUBLIC'}
+                onChange={e=>setForm((f:any)=>({...f, visibility:e.target.value}))}
+              >
+                <option value="PUBLIC">PUBLIC</option>
+                <option value="MEMBERS_ONLY">MEMBERS_ONLY</option>
+                <option value="STUDENTS_ONLY">STUDENTS_ONLY</option>
+                <option value="INTERNAL">INTERNAL</option>
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <input type="number" min={0} className="w-full border rounded px-3 py-2" value={form.capacity ?? 0} onChange={e=>setForm((f:any)=>({...f, capacity:Number(e.target.value)}))} placeholder="Capacity" />
+            </div>
+            <input
+              type="datetime-local"
+              className="w-full border rounded px-3 py-2"
+              value={toDatetimeLocalValue(form.start_at)}
+              onChange={e=>setForm((f:any)=>({...f, start_at: fromDatetimeLocalValue(e.target.value)}))}
+            />
+            <input
+              type="datetime-local"
+              className="w-full border rounded px-3 py-2"
+              value={toDatetimeLocalValue(form.end_at)}
+              onChange={e=>setForm((f:any)=>({...f, end_at: fromDatetimeLocalValue(e.target.value)}))}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm font-medium mb-1">Publish at</label>
+                <input
+                  type="datetime-local"
+                  className="w-full border rounded px-3 py-2"
+                  value={toDatetimeLocalValue(form.publish_at)}
+                  onChange={e=>setForm((f:any)=>({...f, publish_at: fromDatetimeLocalValue(e.target.value)}))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Unpublish at</label>
+                <input
+                  type="datetime-local"
+                  className="w-full border rounded px-3 py-2"
+                  value={toDatetimeLocalValue(form.unpublish_at)}
+                  onChange={e=>setForm((f:any)=>({...f, unpublish_at: fromDatetimeLocalValue(e.target.value)}))}
+                />
+              </div>
+            </div>
+            {/* waiver_url removed from schema */}
+          </div>
+        )}
+
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold">{program.title}</h1>
-          {admin && (
-            <Link href={`/programs/${params.id}/checkin`} className="text-sm bg-indigo-600 text-white px-3 py-1.5 rounded">Check-in</Link>
-          )}
+          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${isFull ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"}`}>
+            {isFull ? "Full" : "Open"}
+          </span>
+          <span className="text-xs text-gray-600">Registered: {capLabel}</span>
         </div>
 
-        {admin ? (
-          <form action={saveProgram.bind(null, params.id)} className="space-y-4">
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Title</label>
-              <input name="title" defaultValue={program.title || ''} className="w-full border rounded px-2 py-1" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Description</label>
-              <textarea name="description" defaultValue={program.description || ''} className="w-full border rounded px-2 py-1" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">Location</label>
-                <input name="location" defaultValue={program.location || ''} className="w-full border rounded px-2 py-1" />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">Capacity</label>
-                <input type="number" min={0} name="capacity" defaultValue={program.capacity || 0} className="w-full border rounded px-2 py-1" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">Start</label>
-                <input type="datetime-local" name="start_at" defaultValue={program.start_at ? new Date(program.start_at).toISOString().slice(0,16) : ''} className="w-full border rounded px-2 py-1" />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">End</label>
-                <input type="datetime-local" name="end_at" defaultValue={program.end_at ? new Date(program.end_at).toISOString().slice(0,16) : ''} className="w-full border rounded px-2 py-1" />
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">Visibility</label>
-                <select name="visibility" defaultValue={program.visibility || 'PUBLIC'} className="w-full border rounded px-2 py-1">
-                  <option value="PUBLIC">PUBLIC</option>
-                  <option value="STUDENTS_ONLY">STUDENTS_ONLY</option>
-                  <option value="MEMBERS_ONLY">MEMBERS_ONLY</option>
-                  <option value="INTERNAL">INTERNAL</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">Delivery Mode</label>
-                <select name="delivery_mode" defaultValue={program.delivery_mode || 'IN_PERSON'} className="w-full border rounded px-2 py-1">
-                  <option value="IN_PERSON">IN_PERSON</option>
-                  <option value="ONLINE">ONLINE</option>
-                  <option value="HYBRID">HYBRID</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">Status</label>
-                <select name="status" defaultValue={program.status || 'SCHEDULED'} className="w-full border rounded px-2 py-1">
-                  <option value="SCHEDULED">SCHEDULED</option>
-                  <option value="CANCELED">CANCELED</option>
-                  <option value="COMPLETED">COMPLETED</option>
-                </select>
-              </div>
-            </div>
-            {/* Price fields removed as schema no longer includes these columns */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">Publish At</label>
-                <input type="datetime-local" name="publish_at" defaultValue={program.publish_at ? new Date(program.publish_at).toISOString().slice(0,16) : ''} className="w-full border rounded px-2 py-1" />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">Unpublish At</label>
-                <input type="datetime-local" name="unpublish_at" defaultValue={program.unpublish_at ? new Date(program.unpublish_at).toISOString().slice(0,16) : ''} className="w-full border rounded px-2 py-1" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Waiver Text</label>
-              <textarea name="waiver_text" defaultValue={program.waiver_text || ''} className="w-full border rounded px-2 py-1" />
-            </div>
-            <button type="submit" className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition-colors">Save</button>
+        {!editing && (
+          <button
+            onClick={handleRegister}
+            className={`w-full py-2 rounded-lg font-semibold transition ${
+              isRegistered
+                ? "bg-red-500 text-white hover:bg-red-600"
+                : isFull
+                  ? "bg-teal-600 text-white hover:bg-teal-700"
+                  : "bg-blue-600 text-white hover:bg-blue-700"
+            }`}
+          >
+            {isRegistered ? "Unregister" : isFull ? "Join waitlist" : "Register"}
+          </button>
+        )}
+
+        {isStaff && !editing && (
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              onClick={() => router.push(`/programs/${id}/check-in`)}
+              className="w-full py-2 rounded-lg font-semibold bg-blue-600 text-white hover:bg-blue-700 transition"
+            >
+              Check In Page
+            </button>
+            <button
+              onClick={() => setEditing(true)}
+              className="w-full py-2 rounded-lg font-semibold bg-teal-600 text-white hover:bg-teal-700 transition"
+            >
+              Edit Program
+            </button>
+          </div>
+        )}
+
+        {isStaff && editing && (
+          <form
+            action={async (fd: FormData) => {
+              setSaving(true);
+              setError(null);
+              fd.set("id", String(id));
+              fd.set("title", form?.title ?? "");
+              fd.set("description", form?.description ?? "");
+              fd.set("location", form?.location ?? "");
+              fd.set("visibility", form?.visibility ?? "PUBLIC");
+              fd.set("capacity", String(form?.capacity ?? 0));
+              if (form?.start_at) fd.set("start_at", form.start_at);
+              if (form?.end_at) fd.set("end_at", form.end_at);
+              if (form?.publish_at) fd.set("publish_at", form.publish_at);
+              if (form?.unpublish_at) fd.set("unpublish_at", form.unpublish_at);
+
+              const res = await updateProgramAction(fd);
+              if (!res.ok) {
+                setError(res.error ?? 'Failed to save program');
+                setSaving(false);
+                return;
+              }
+              setSaving(false);
+              setEditing(false);
+            }}
+            className="mt-3 grid grid-cols-2 gap-2"
+          >
+            <button
+              type="submit"
+              disabled={saving}
+              className={`w-full py-2 rounded-lg font-semibold ${saving ? 'bg-green-300' : 'bg-green-600 hover:bg-green-700'} text-white transition`}
+            >
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setEditing(false); setForm(program); }}
+              disabled={saving}
+              className="w-full py-2 rounded-lg font-semibold bg-gray-200 text-gray-800 hover:bg-gray-300 transition"
+            >
+              Cancel
+            </button>
           </form>
-        ) : (
-          <>
-            {/* Capacity / status summary */}
-            <div className="mb-4 text-sm text-gray-700">
-              {program.capacity > 0 ? (
-                <>
-                  <div>
-                    <strong>Capacity:</strong> {regCount}/{program.capacity}
-                  </div>
-                  {isFull && (
-                    <div className="text-amber-700">This program is currently full. You can join the waitlist.</div>
-                  )}
-                </>
-              ) : (
-                <div><strong>Capacity:</strong> Unlimited</div>
-              )}
-            </div>
-            <ProgramRegisterClient program={{ ...program, _isFull: isFull, _regCount: regCount }} />
-          </>
+        )}
+
+        {error && (
+          <p className="mt-3 text-sm text-red-600">{error}</p>
         )}
       </div>
     </div>

@@ -20,7 +20,7 @@ export default function RegisterButton({ programId }: { programId: string }) {
       else {
         const status = data.status || (data.data?.status);
         if (status === 'WAITLISTED') {
-          const pos = data.data?.position;
+          const pos = data.data?.waitlist_position;
           setMessage(typeof pos === 'number' ? `Waitlisted (position ${pos})` : 'Waitlisted');
         } else {
           setMessage(`Registered: ${status}`);

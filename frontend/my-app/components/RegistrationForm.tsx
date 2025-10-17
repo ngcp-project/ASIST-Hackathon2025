@@ -54,7 +54,12 @@ export default function RegistrationForm({ programId, programTitle }: { programI
       if (!data.success) {
         setMessage(data.message || 'Failed to register');
       } else {
-        setMessage(`Registered: ${data.status}`);
+        if (data.status === 'WAITLISTED' || data.data?.status === 'WAITLISTED') {
+          const pos = data.data?.waitlist_position;
+          setMessage(typeof pos === 'number' ? `Waitlisted (position ${pos})` : 'Waitlisted');
+        } else {
+          setMessage(`Registered: ${data.status || data.data?.status || 'REGISTERED'}`);
+        }
         // small delay then navigate
         setTimeout(() => {
           router.push('/profile');
