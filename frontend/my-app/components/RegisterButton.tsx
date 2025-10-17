@@ -17,7 +17,15 @@ export default function RegisterButton({ programId }: { programId: string }) {
       });
       const data = await res.json();
       if (!data.success) setMessage(data.message || 'Failed');
-      else setMessage(`Registered: ${data.status}`);
+      else {
+        const status = data.status || (data.data?.status);
+        if (status === 'WAITLISTED') {
+          const pos = data.data?.position;
+          setMessage(typeof pos === 'number' ? `Waitlisted (position ${pos})` : 'Waitlisted');
+        } else {
+          setMessage(`Registered: ${status}`);
+        }
+      }
     } catch (err: any) {
       setMessage(err?.message ?? 'Error');
     } finally {

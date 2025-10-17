@@ -59,6 +59,11 @@ export default async function ProgramDetailPage({ params }: { params: { id: stri
 
   if (!program) return <p className="text-center mt-10">Program not found</p>;
 
+  // Compute participation counts via RPC (security definer)
+  const { data: part } = await supabase.rpc('program_participation', { p_program_ids: [params.id] });
+  const regCount = Array.isArray(part) && part.length > 0 ? (part[0] as any).registered ?? 0 : 0;
+  const isFull = (program.capacity ?? 0) > 0 ? regCount >= (program.capacity ?? 0) : false;
+
   return (
     <div className="flex flex-col items-center mt-6 min-h-screen p-6">
       <div className="max-w-xl w-full bg-white shadow-lg rounded-2xl p-6">
@@ -144,7 +149,24 @@ export default async function ProgramDetailPage({ params }: { params: { id: stri
             <button type="submit" className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition-colors">Save</button>
           </form>
         ) : (
-          <ProgramRegisterClient program={program} />
+          <>
+            {/* Capacity / status summary */}
+            <div className="mb-4 text-sm text-gray-700">
+              {program.capacity > 0 ? (
+                <>
+                  <div>
+                    <strong>Capacity:</strong> {regCount}/{program.capacity}
+                  </div>
+                  {isFull && (
+                    <div className="text-amber-700">This program is currently full. You can join the waitlist.</div>
+                  )}
+                </>
+              ) : (
+                <div><strong>Capacity:</strong> Unlimited</div>
+              )}
+            </div>
+            <ProgramRegisterClient program={{ ...program, _isFull: isFull, _regCount: regCount }} />
+          </>
         )}
       </div>
     </div>

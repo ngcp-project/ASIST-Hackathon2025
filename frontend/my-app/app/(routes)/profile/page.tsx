@@ -77,7 +77,7 @@ export default async function Profile() {
   // Fetch registration history (join with programs)
   const regsRes = await supabase
     .from('registrations')
-    .select('id,status,created_at,programs(id,title,start_at,end_at)')
+    .select('id,status,waitlist_position,created_at,programs(id,title,start_at,end_at)')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
 
@@ -162,7 +162,11 @@ export default async function Profile() {
                         <li key={r.id} className="flex justify-between items-start p-3 bg-white rounded-md shadow-sm">
                           <div>
                             <div className="font-medium">{r.programs?.title ?? 'Program'}</div>
-                            <div className="text-xs text-gray-500">{r.status} • {new Date(r.created_at).toLocaleString()}</div>
+                            <div className="text-xs text-gray-500">
+                              {r.status}
+                              {r.status === 'WAITLISTED' && typeof r.waitlist_position === 'number' ? ` (position ${r.waitlist_position})` : ''}
+                              {' '}• {new Date(r.created_at).toLocaleString()}
+                            </div>
                           </div>
                           <div className="text-sm text-gray-500">{r.programs?.start_at ? new Date(r.programs.start_at).toLocaleDateString() : ''}</div>
                         </li>

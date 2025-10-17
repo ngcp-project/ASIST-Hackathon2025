@@ -40,7 +40,7 @@ export default async function Programs() {
   const nowIso = new Date().toISOString();
   const { data: programs } = await supabase
     .from('programs')
-    .select('id,title,location,start_at,end_at,publish_at,unpublish_at')
+    .select('id,title,location,start_at,end_at,publish_at,unpublish_at,capacity')
     // Explicitly filter by publish/unpublish window so staff also see only “online” items by default
     .or(`publish_at.is.null,publish_at.lte.${nowIso}`)
     .or(`unpublish_at.is.null,unpublish_at.gt.${nowIso}`)
@@ -49,15 +49,20 @@ export default async function Programs() {
   const list = (programs as any) ?? [];
   // Participation counts: only compute for admins (RLS allows staff to read registrations)
   const ids = list.map((p: any) => p.id);
-  let counts: Record<string, number> = {};
+  let countsRegistered: Record<string, number> = {};
+  let countsWaitlisted: Record<string, number> = {};
   if (admin && ids.length > 0) {
     const { data: regs } = await supabase
       .from('registrations')
       .select('program_id,status')
       .in('program_id', ids)
-      .in('status', ['REGISTERED','CHECKED_IN']);
+      .in('status', ['REGISTERED','CHECKED_IN','WAITLISTED']);
     for (const r of (regs as any[] ?? [])) {
-      counts[r.program_id] = (counts[r.program_id] ?? 0) + 1;
+      if (r.status === 'WAITLISTED') {
+        countsWaitlisted[r.program_id] = (countsWaitlisted[r.program_id] ?? 0) + 1;
+      } else {
+        countsRegistered[r.program_id] = (countsRegistered[r.program_id] ?? 0) + 1;
+      }
     }
   }
 
@@ -151,10 +156,17 @@ export default async function Programs() {
                               {end.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
                             </p>
                             {admin && (
-                              <p className="mt-1">
-                                <strong>Participants:</strong>{' '}
-                                {(counts[program.id] ?? 0)}
-                              </p>
+                              <div className="mt-1 space-y-0.5">
+                                <p>
+                                  <strong>Registered:</strong>{' '}
+                                  {(countsRegistered[program.id] ?? 0)}{typeof program.capacity === 'number' && program.capacity > 0 ? ` / ${program.capacity}` : ''}
+                                </p>
+                                {typeof countsWaitlisted[program.id] === 'number' && countsWaitlisted[program.id] > 0 && (
+                                  <p className="text-amber-700">
+                                    <strong>Waitlisted:</strong> {countsWaitlisted[program.id]}
+                                  </p>
+                                )}
+                              </div>
                             )}
                           </div>
                         </div>
