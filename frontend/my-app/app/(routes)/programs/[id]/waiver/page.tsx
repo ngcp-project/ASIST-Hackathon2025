@@ -2,14 +2,35 @@
 "use client";
 
 import { useRouter, useParams } from "next/navigation";
+import { useState } from "react";
 
 export default function WaiverPage() {
   const router = useRouter();
   const { id } = useParams();
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
 
-  const handleAgree = () => {
-    localStorage.setItem(`registered_${id}`, "true");
-    router.push(`/programs/${id}`);
+  const handleAgree = async () => {
+    try {
+      setLoading(true);
+      setMessage(null);
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ programId: String(id) })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        setMessage(data.message || 'Failed to register');
+        setLoading(false);
+        return;
+      }
+      // Go to profile to show registration history
+      router.push('/profile');
+    } catch (e: any) {
+      setMessage(e?.message ?? 'Error');
+      setLoading(false);
+    }
   };
 
   const handleCancel = () => {
@@ -35,9 +56,10 @@ export default function WaiverPage() {
         <div className="flex gap-4">
           <button
             onClick={handleAgree}
-            className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700"
+            disabled={loading}
+            className={`flex-1 text-white py-2 rounded-lg ${loading ? 'bg-green-400' : 'bg-green-600 hover:bg-green-700'}`}
           >
-            Agree and Continue
+            {loading ? 'Registering…' : 'Agree and Continue'}
           </button>
           <button
             onClick={handleCancel}
@@ -46,6 +68,7 @@ export default function WaiverPage() {
             Cancel
           </button>
         </div>
+        {message && <p className="mt-4 text-sm text-red-600">{message}</p>}
       </div>
     </div>
   );
