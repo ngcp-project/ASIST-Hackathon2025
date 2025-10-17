@@ -51,38 +51,46 @@ export default function ProgramDetailPage() {
     const fetchParticipation = async () => {
       if (!id) return;
       try {
-  // Explicitly pass null for p_program_ids; some setups require a params object
-  const { data: part, error } = await supabase.rpc("program_participation", { p_program_ids: null });
-        if (error) throw error;
-        const row = Array.isArray(part)
-          ? (part as any[]).find((r) => r.program_id === id)
-          : undefined;
+        // Prefer security-definer RPC for accurate counts regardless of RLS
+        let part: any[] | null = null;
+        let rpcErr: any = null;
+        {
+          const res = await supabase.rpc('program_participation', { p_program_ids: [id] as any });
+          part = Array.isArray(res.data) ? res.data as any[] : null;
+          rpcErr = res.error;
+        }
+        if (!part || rpcErr) {
+          const res2 = await supabase.rpc('program_participation', { p_program_ids: null as any });
+          part = Array.isArray(res2.data) ? res2.data as any[] : null;
+          rpcErr = res2.error;
+        }
+        if (!part || rpcErr) throw rpcErr || new Error('participation rpc failed');
+        const row = part.find((r: any) => r.program_id === id);
         const count = row?.registered ?? 0;
         setRegCount(count);
         setHasParticipation(true);
       } catch (e: any) {
-        // Graceful fallback when RPC is missing or schema cache is stale: direct count query
+        // Fallback: if staff, we can count via table (RLS permits staff). For non-staff, hide counts to avoid misleading values.
         try {
-          const { count, error: cErr } = await supabase
-            .from('registrations')
-            .select('id', { count: 'exact', head: true })
-            .eq('program_id', id)
-            .in('status', ['REGISTERED','CHECKED_IN']);
-          if (cErr || typeof count !== 'number') {
-            setHasParticipation(false);
-            setRegCount(0);
-          } else {
-            setHasParticipation(true);
-            setRegCount(count);
+          if (isStaff) {
+            const { count, error: cErr } = await supabase
+              .from('registrations')
+              .select('id', { count: 'exact', head: true })
+              .eq('program_id', id)
+              .in('status', ['REGISTERED','CHECKED_IN']);
+            if (!cErr && typeof count === 'number') {
+              setHasParticipation(true);
+              setRegCount(count);
+              return;
+            }
           }
-        } catch {
-          setHasParticipation(false);
-          setRegCount(0);
-        }
+        } catch {}
+        setHasParticipation(false);
+        setRegCount(0);
       }
     };
     fetchParticipation();
-  }, [id, supabase]);
+  }, [id, supabase, isStaff]);
 
   // Check if current user is registered for this program
   useEffect(() => {
@@ -133,25 +141,38 @@ export default function ProgramDetailPage() {
 
   const refreshCounts = async () => {
     try {
-      const { data: part, error } = await supabase.rpc('program_participation', { p_program_ids: null });
-      if (error) throw error;
-      const row = Array.isArray(part) ? (part as any[]).find((r) => r.program_id === id) : undefined;
+      let part: any[] | null = null;
+      let rpcErr: any = null;
+      {
+        const res = await supabase.rpc('program_participation', { p_program_ids: [id] as any });
+        part = Array.isArray(res.data) ? res.data as any[] : null;
+        rpcErr = res.error;
+      }
+      if (!part || rpcErr) {
+        const res2 = await supabase.rpc('program_participation', { p_program_ids: null as any });
+        part = Array.isArray(res2.data) ? res2.data as any[] : null;
+        rpcErr = res2.error;
+      }
+      if (!part || rpcErr) throw rpcErr || new Error('participation rpc failed');
+      const row = part.find((r: any) => r.program_id === id);
       setHasParticipation(true);
       setRegCount(row?.registered ?? 0);
     } catch {
-      // Fallback to direct count
+      // Fallback to direct count only for staff
       try {
-        const { count, error: cErr } = await supabase
-          .from('registrations')
-          .select('id', { count: 'exact', head: true })
-          .eq('program_id', id)
-          .in('status', ['REGISTERED','CHECKED_IN']);
-        if (cErr || typeof count !== 'number') {
-          setHasParticipation(false);
-        } else {
-          setHasParticipation(true);
-          setRegCount(count);
+        if (isStaff) {
+          const { count, error: cErr } = await supabase
+            .from('registrations')
+            .select('id', { count: 'exact', head: true })
+            .eq('program_id', id)
+            .in('status', ['REGISTERED','CHECKED_IN']);
+          if (!cErr && typeof count === 'number') {
+            setHasParticipation(true);
+            setRegCount(count);
+            return;
+          }
         }
+        setHasParticipation(false);
       } catch {
         setHasParticipation(false);
       }
@@ -343,6 +364,11 @@ export default function ProgramDetailPage() {
                 setError(res.error ?? 'Failed to save program');
                 setSaving(false);
                 return;
+              }
+              // Update local program state so the UI reflects new values immediately
+              if (res.program) {
+                setProgram(res.program);
+                setForm(res.program);
               }
               setSaving(false);
               setEditing(false);

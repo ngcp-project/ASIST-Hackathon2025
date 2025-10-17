@@ -15,9 +15,16 @@ export const serverClient = async () => {
           return cookieStore.getAll().map(c => ({ name: c.name, value: c.value }))
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set({ name, value, ...options })
-          })
+          // Next.js 14+ restricts writing cookies during RSC render.
+          // Supabase may attempt to sync cookies on client creation/refresh.
+          // Swallow errors here; real writes should happen in Server Actions or Route Handlers.
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set({ name, value, ...options })
+            })
+          } catch (e) {
+            // Ignore when called in a Server Component render context.
+          }
         },
       },
     }
