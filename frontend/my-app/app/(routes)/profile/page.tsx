@@ -3,6 +3,7 @@ import { serverClient } from '@/lib/supabase/server';
 import { UserCircle } from 'lucide-react';
 import Link from 'next/link';
 import SignOutButton from '@/components/SignOutButton';
+import CancelMembershipButton from '@/components/CancelMembershipButton';
 
 type ProfileRow = {
   first_name?: string | null;
@@ -115,6 +116,9 @@ export default async function Profile() {
                         <div className="flex justify-between py-1">
                           <span className="text-gray-600">Expires</span>
                           <span className="text-gray-600">{expireDate}</span>
+                        </div>
+                        <div className="mt-4">
+                          <CancelMembershipButton />
                         </div>
                       </>
                     ) : (
