@@ -46,7 +46,7 @@ export async function updateProgramAction(formData: FormData) {
     unpublish_at: toISO(formData.get("unpublish_at"))
   };
 
-  const { data: updated, error } = await supabase
+  const { error } = await supabase
     .from("programs")
     .update(update)
     .eq("id", id)
@@ -58,5 +58,5 @@ export async function updateProgramAction(formData: FormData) {
   // Revalidate listings and detail page
   revalidatePath("/programs");
   revalidatePath(`/programs/${id}`);
-  return { ok: true, program: updated } as const;
+  return { ok: true };
 }
