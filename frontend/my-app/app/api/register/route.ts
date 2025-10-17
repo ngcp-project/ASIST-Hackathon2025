@@ -39,9 +39,7 @@ export async function POST(req: Request) {
     // default: register
     const { data, error } = await supabase.rpc('register_user', {
       p_program_id: programId,
-      p_price_paid: null,
-      p_answers: answers ?? [],
-      p_agreed_ip: null
+      p_answers: answers ?? []
     });
 
     if (error) return NextResponse.json({ success: false, message: error.message }, { status: 400 });

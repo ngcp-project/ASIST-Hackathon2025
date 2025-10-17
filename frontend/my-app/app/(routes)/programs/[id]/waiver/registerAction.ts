@@ -11,9 +11,7 @@ export async function registerForProgram(programId: string, answers?: any): Prom
   try {
     const { data, error } = await supabase.rpc('register_user', {
       p_program_id: programId,
-      p_price_paid: null,
-      p_answers: answers ?? [],
-      p_agreed_ip: null
+      p_answers: answers ?? []
     });
 
     if (error) return { success: false, message: error.message };
